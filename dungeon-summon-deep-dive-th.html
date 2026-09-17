@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dungeon Summon: เจาะลึกโค้ดและระบบ</title>
+    <link rel="stylesheet" href="dungeon-summon-deep-dive.css">
+  </head>
+  <body>
+    <header class="hero">
+      <p class="eyebrow">Dungeon Summon · Solo place</p>
+      <h1>เจาะลึกระบบจากรากโปรเจกต์ถึงการเล่นจริง</h1>
+      <p>คู่มือนี้อธิบายว่าแต่ละส่วนของ Roblox place ทำหน้าที่อะไร เริ่มระบบอย่างไร ข้อมูลเดินทางอย่างไร และเหตุใด Server จึงเป็นผู้ตัดสินผลลัพธ์ของเกม</p>
+    </header>
+    <main>
+      <section class="notice" aria-label="ขอบเขตข้อมูล">
+        <strong>ยืนยันจาก Studio แล้ว</strong>
+        <span>Roblox MCP เชื่อมกับ <code>Solo</code> (placeId 78995314774794) ใน Edit mode แล้ว เนื้อหาด้านล่างอ้างอิง live hierarchy และ service/controller ที่มีอยู่จริง พร้อมใช้ handoff log เฉพาะเพื่อบอกงาน QA ที่ยังค้าง</span>
+      </section>
+      <section class="flow-section" aria-labelledby="root-flow-title">
+        <p class="eyebrow">ลำดับการทำงาน</p>
+        <h2 id="root-flow-title">จาก Bootstrap ไปจนถึง HUD</h2>
+        <div class="flow" role="list" aria-label="ลำดับการบูตระบบ">
+          <button class="flow-node active" data-node="bootstrap" role="listitem">1<br><b>Bootstrap</b><small>จุดเริ่ม Server</small></button><span class="arrow">→</span>
+          <button class="flow-node" data-node="services" role="listitem">2<br><b>Services</b><small>เจ้าของระบบ</small></button><span class="arrow">→</span>
+          <button class="flow-node" data-node="classes" role="listitem">3<br><b>Classes</b><small>วัตถุที่มีหลายตัว</small></button><span class="arrow">→</span>
+          <button class="flow-node" data-node="remotes" role="listitem">4<br><b>Remotes</b><small>สะพาน Client</small></button><span class="arrow">→</span>
+          <button class="flow-node" data-node="client" role="listitem">5<br><b>Controllers</b><small>UI และ Input</small></button>
+        </div>
+        <article id="node-detail" class="detail" aria-live="polite"></article>
+      </section>
+      <section class="two-col" aria-label="ลำดับเริ่มต้นจริง">
+        <article><p class="eyebrow">Server Bootstrap ที่อ่านได้จาก Studio</p><h2>Init ทุกตัวก่อน แล้วจึง Start</h2><p>ลำดับจริงคือ <code>DataService → PlaceholderCombatService → StatsService → PartyService → HunterAIService → GateService → GuildBaseService → DungeonBreakService → WalletService → DungeonService → ProgressionService → InventoryService → CraftingService → BlacksmithService → ClassService → QuestService → RecruitService → DummyService → TestHazardService → DebugService</code></p><p>Data พร้อมก่อนสร้างปาร์ตี้, Gate พร้อมก่อน Dungeon register entry handler และระบบ progression/item/class/quest ใช้ event ของระบบก่อนหน้าได้</p></article>
+        <article><p class="eyebrow">Client Bootstrap ที่อ่านได้จาก Studio</p><h2>ข้อมูลมาก่อนเมนูและ gameplay UI</h2><p><code>GuiController → DataController → MenuController → CameraController → CharacterController → PartyController → GateController → DungeonController → DungeonBreakController → PartyEditorController → InventoryController → WorkshopController → ClassController → QuestController → RecruitController</code></p><p><code>DataController</code> รับ Snapshot และ KeyChanged ก่อน controller หน้าจออื่นใช้ข้อมูล profile เพื่อทำ HUD, bag, party editor, class, quest และ recruitment</p></article>
+      </section>
+      <section class="two-col">
+        <article><p class="eyebrow">ผัง root ของ Roblox</p><h2>โฟลเดอร์อยู่ตรงไหนและทำไม</h2><div class="tree"><div><code>ReplicatedStorage/Config</code><span>ตารางข้อมูลปรับแต่งได้ เช่น RoleDefs, GateDefs, ItemDefs และ QuestDefs</span></div><div><code>ReplicatedStorage/Modules + Remotes</code><span>โมดูลร่วมกัน และช่องทาง RemoteFunction/RemoteEvent</span></div><div><code>ServerScriptService</code><span>Bootstrap, Services, Classes และกฎเกมที่เชื่อถือได้</span></div><div><code>ServerStorage</code><span>ต้นแบบ Gate, dungeon, rig และโครงสร้างฐาน</span></div><div><code>StarterPlayerScripts + StarterGui</code><span>Controllers, HUD, เมนู และ UI classes</span></div><div><code>Workspace</code><span>Gate, Guild Base, dungeon ที่ clone และ debris ที่กำลังใช้งาน</span></div></div></article>
+        <article><p class="eyebrow">กฎโครงสร้างสำคัญ</p><h2>ใครรับผิดชอบอายุของวัตถุ?</h2><ul><li><b>Service</b> เป็น singleton ที่ครอบครองระบบ เช่น <code>GateService</code> สร้าง ติดตาม และลบ Gate</li><li><b>Class</b> คือวัตถุที่มีหลายตัว เช่น <code>Gate</code>, <code>Hunter</code>, <code>Monster</code>, <code>DungeonInstance</code></li><li>Class ต้องมี <code>Destroy()</code> เพื่อตัด event และทำลาย Instance ที่มันสร้าง</li><li>Signal ใช้ประกาศเหตุการณ์ระหว่างระบบ เช่น Gate Stability หมด หรือปาร์ตี้ถูก wipe</li></ul></article>
+      </section>
+      <section><p class="eyebrow">ตัวอย่างเส้นทางข้อมูล</p><h2>เมื่อผู้เล่นกด Enter Gate เกิดอะไรขึ้น?</h2><ol class="loop"><li><b>GateController</b> แสดง GatePanel จาก rank, modifier, stability และ party power ที่ Server ส่งให้</li><li>Client เรียก Remote เพื่อขอเข้า Gate ไม่ใช่คำสั่งย้ายตัวเอง</li><li><b>GateService / DungeonService</b> ตรวจว่า Gate เปิดอยู่ ปาร์ตี้เป็นของผู้ขอ ทุกคนเข้าได้ และยังมี dungeon slot</li><li><b>DungeonService</b> clone template ไปยัง slot ที่อยู่ไกลใน Workspace แล้วพา Hunter ทั้ง 3 คนเข้าไป</li><li><b>DungeonInstance</b> จัด wave, ประตู, boss และทางออก</li><li>เมื่อจบ <b>DungeonService</b> ให้รางวัล ส่ง event ให้ Progression/Inventory/Quest แล้วคืน party และ slot</li></ol></section>
+      <section><p class="eyebrow">API ที่ยืนยันจาก Studio</p><h2>Remote interfaces ที่ Client เรียกได้</h2><div class="table-responsive"><table class="table"><thead><tr><th>กลุ่ม</th><th>คำขอ / การแจ้งผล</th><th>หน้าที่</th></tr></thead><tbody><tr><td>Party</td><td><code>RequestSwap, SetAIMode, GetPartyState, SetParty, PartyState</code></td><td>สลับ Hunter, เปลี่ยน AI, อ่าน/จัดปาร์ตี้</td></tr><tr><td>Gate + Dungeon</td><td><code>GetGateInfo, EnterGate, DungeonState, Results, Message</code></td><td>ประเมิน Gate, ขอเข้า, แจ้งสถานะและผลดันเจี้ยน</td></tr><tr><td>Data + Items</td><td><code>Snapshot, GetSnapshot, KeyChanged, Equip, Unequip, Sell, UseConsumable, Craft, Upgrade, ForgeSignature</code></td><td>sync profile และคำสั่ง inventory</td></tr><tr><td>Class + Quest + Recruit</td><td><code>Awaken, SwitchClass, Claim, AcceptSecret, Recruit</code></td><td>ปลุกพลัง, claim quest, secret chain และสุ่ม Hunter</td></tr></tbody></table></div></section>
+      <section class="two-col"><article><p class="eyebrow">ความปลอดภัยของเกม</p><h2>ทำไม Client แก้ Gold หรือดาเมจเองไม่ได้</h2><p>Client รับปุ่มและแสดงผล แต่ไม่ใช่แหล่งความจริง Server ตรวจ ownership, ระยะ, cooldown, สถานะมีชีวิต และ state ของเกมก่อนแก้ข้อมูล</p><p>ข้อมูลถาวรผ่าน <code>DataService</code> และ ProfileService; WalletService เป็น API สำหรับ Gold/Diamonds</p></article><article><p class="eyebrow">สัญญาระหว่างระบบ</p><h2>dependency ที่ตั้งใจให้เปลี่ยนได้</h2><p>Stage 5 ใช้ <code>PlaceholderCombatService</code> เป็นจุดกลางของ damage. Stage 6 ส่ง modifier เป็น attributes/stat data จึงเปลี่ยนเป็น CombatService และ DamageService ภายหลังได้</p><p>PartyService ยังเป็นเจ้าของปาร์ตี้และการสลับ Hunter แม้ Gate, Dungeon และ UI จะใช้ข้อมูลพลังของปาร์ตี้</p></article></section>
+      <section aria-labelledby="stage-title"><p class="eyebrow">แผนการพัฒนา</p><h2 id="stage-title">เลือก Stage เพื่อดูรายละเอียดเชิงระบบ</h2><div class="stage-picker" id="stage-picker"></div><article id="stage-detail" class="detail stage-detail" aria-live="polite"></article></section>
+      <section class="two-col"><article><p class="eyebrow">สถานะปัจจุบัน</p><h2>Stage 6 รอการตรวจด้วยมือ</h2><ul><li>6A: ProfileService store <code>PlayerData_v1</code>, ข้อมูลผู้เล่น, Gold/Diamonds และ session lock</li><li>6B: EXP, level, rank, party editor และ party power</li><li>6C: inventory, crafting, blacksmith, signature weapon, potion/trap</li><li>6D: awakening และ Player Class</li><li>6E: quest board, secret quest และ recruitment</li></ul></article><article><p class="eyebrow">รายการที่ต้องทดสอบ</p><h2>สิ่งที่ควรเปิด Studio แล้วลองต่อ</h2><ul><li>ขายของ ใช้ potion ถอด gear และดู trap ทำดาเมจ</li><li>ทำให้ Guild Base Damaged แล้วตรวจว่า structure ถูก lock</li><li>รับ secret quest, recruit Hunter และใส่ปาร์ตี้</li><li>รอ quest board refresh และตรวจผล rollover</li><li>Stage 3 edge cases: Red Gate, Berserk, party wipe/eject</li></ul></article></section>
+    </main>
+    <footer>Live Studio source verified through Roblox MCP on 2026-09-17 · handoff log is used only for remaining QA and sign-off status</footer>
+    <script src="dungeon-summon-deep-dive-th.js"></script>
+  </body>
+</html>

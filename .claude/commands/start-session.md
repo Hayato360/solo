@@ -57,14 +57,20 @@ Then glob `Session-AI_logs/` for any other session logs from the last 3 days (an
 Glob the project root (`*.md`) and read all design docs. Key file to prioritize:
 
 - `Dungeon Summon - Core System Design Document.md` — the master design reference (Gate system, Raid Party/AI companions, Player Class/Awakening, Hunter Base, Economy & Pawn System)
+- `Dungeon Summon - Implementation Plan.md` — the staged Roblox build plan. Check its Status table to find the current stage, and follow that stage's Build list and "Done when" checks.
 
 Read any other `.md` design files that appear in the root or in a docs folder — do not skip any unless clearly out of scope (e.g. this command file itself).
 
 ---
 
-## Step 4 — Connect to engine / editor
+## Step 4 — Connect to engine / editor ⚠️ ALWAYS CHECK — do not skip based on doc assumptions
 
-Dungeon Summon has **no game engine or codebase connected yet** — it is currently design-doc only. Skip this step until source files or an engine project actually exist in the repo. When code is eventually added, update this step with the correct engine/MCP connection instructions.
+**Always** call the Roblox Studio MCP tool to check for a live instance, regardless of whether the project "looks like" design-doc-only. Do not skip this step just because no engine has been mentioned yet — check every session.
+
+1. Call `list_roblox_studios` to find available editor instances.
+2. If one or more instances are found, **confirm with the user** which instance (by name/placeId) is the Dungeon Summon project before connecting to or reading/modifying anything in it — do not assume.
+3. Once confirmed, call `get_studio_state` with that `studio_id` to verify the connection with a quick sanity check.
+4. If no instance is found, tell the user and continue with Step 5 (skip reading scripts) — do not block the session on this.
 
 ---
 

@@ -15,7 +15,7 @@ powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm'"
 
 ## Step 2 — Write session log
 
-Create or **append** to `Session-AI_logs/Claude/session_YYYY-MM-DD.md` (use today's date from Step 1).
+Create or **append** to `Session-AI_logs/Claude/session_YYYY-MM-DD.md` (use today's date from Step 1). Use `Session-AI_logs/Claude/_TEMPLATE.md` as the structure to follow.
 
 If the file already exists, do NOT overwrite it — append a new continuation section with a header like:
 ```
@@ -39,9 +39,23 @@ No calendar/notes vault is currently set up for this project. Skip this step unl
 
 ---
 
-## Step 4 — Bump the in-game version label (optional)
+## Step 4 — Bump the in-game version label ⚠️
 
-Not applicable yet — there is no build or in-game version label until implementation starts. Skip this step until the project has a running build with a version label, then fill in the path and bump policy (patch/minor/major).
+**Do not skip this step, even if the session felt small.**
+
+Connect to the **Solo** Studio instance (`list_roblox_studios`, pick the one named `Solo`), make sure it is in **Edit** mode, then read and update `game.StarterGui.VersionGui.VersionLabel.Text` (three-part `vMAJOR.MINOR.PATCH`, e.g. `v0.0.1`).
+
+1. Read the current value.
+2. **By default, bump PATCH by 1** (`v0.0.1` → `v0.0.2`) for normal sessions: fixes, tuning, small features.
+   - **MINOR** (reset patch to 0) when a whole implementation-plan stage is finished.
+   - **MAJOR** only if the user explicitly asks.
+3. Write the new value and read it back to confirm.
+
+Only skip the bump if nothing in the Studio place or scripts changed this session (docs-only session).
+
+**If Studio is unavailable:** say clearly in the final report that the version was **not** bumped.
+
+**Always remind the user to publish the place.** Changes in Studio do not reach the live game until it is published.
 
 ---
 
@@ -109,5 +123,5 @@ Tell the user:
 1. What was written to the session log
 2. The sync_log row that was appended
 3. What tasks were updated in sync_task.md
-4. Version label status — not applicable yet
+4. Version label: old → new value (or why it was not bumped), plus a reminder to publish
 5. Git status — committed/pushed, not a repo yet, or error

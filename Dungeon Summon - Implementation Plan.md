@@ -12,7 +12,7 @@ Each stage lists its goal, what to build, and how to know it's done. Build stage
 | 2     | Gate System (overworld)            | §2 Gate System                  | ✅             |
 | 3     | Gate Exploration (dungeon run)     | §1 Loop 5, §2 Modifiers         | ⏸ Check later |
 | 4     | Dungeon Break & Guild Base         | §2 Stability, §5 Hunter Base    | ✅             |
-| 5     | Combat Deep-Dive                   | §3 Hunter Roles                 | 🟨 Core built |
+| 5     | Combat Deep-Dive                   | §3 Hunter Roles                 | 🟨 Built       |
 | 6     | Progression, Player Class & Saving | §4 Player Class, §5 Progression | ⬜             |
 | 7     | Multiplayer Party                  | §3 Multiplayer Party Rules      | ⬜             |
 | 8     | Economy & Pawn System              | §6 Economy (Phase 3+)           | ⬜             |
@@ -465,9 +465,9 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 > - While locked the client sets `Humanoid.AutoRotate = false` and faces the target itself (`TargetController`). Combat that rotates the character must cooperate with this, not fight it.
 > - `HumanoidUtil` disables `FallingDown` / `Ragdoll`; Stage 5 ragdolls must re-enable them deliberately, on whichever machine simulates the Humanoid.
 
-### Built notes (2026-09-18, v0.3.6) — core combat landed, taken back from the junior dev
+### Built notes (2026-09-18, v0.3.7) — combat built, taken back from the junior dev
 
-**Status: 🟨 core built, awaiting user sign-off.** The user asked Claude to take Stage 5 over rather than keep waiting.
+**Status: 🟨 built, awaiting user sign-off.** The user asked Claude to take Stage 5 over rather than keep waiting, then to carry it through to done.
 
 **Built**
 | File | What |
@@ -496,12 +496,33 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 - AI companions damage through the same path (a dummy took 1215 from companions), so the legacy route works.
 - Clean boot, zero errors, `DamageService` / `CombatService` / `CombatController` all start.
 
-**Not done — needs assets or more work**
-- **Animations.** `ReplicatedStorage.Assets.Animations` is empty and `latestTest` was not open, so no ids could be read. Every `AttackDefs` entry has an empty `AnimationId`; combat runs correctly without it and animates the moment ids are filled in. This also blocks Codex's per-weapon sword combos (`WeaponCombos` is the hook, currently empty).
-- **R15 ragdoll** (needs Motor6D → BallSocketConstraint, and must re-enable the states `HumanoidUtil` disables), hit-reaction animations, sounds, real VFX (current VFX are Neon parts and discs).
-- **Boss phases** and destructible props.
-- **AI does not use skills yet** — companions and monsters only basic-attack. `TryUseSkill` is ready for `AIBrain` to call.
-- **Blocking not hand-tested** (needs a held right mouse button).
+**Second pass — the rest of the stage**
+| File | What |
+|---|---|
+| `Modules/Ragdoll` (server) | R15 ragdoll for **both** rig types |
+| `Modules/CombatFX` (shared) | Positional sound with pitch jitter; a missing sound is a silent no-op, never an error |
+| `Services/DestructibleService` | Props tagged `Destructible` take splash damage from any nearby hit and shatter into physics fragments |
+| `Config/MonsterDefs` | `BossPhase` type + Goblin Chief phases (Furious at 60%, Enraged at 30%) |
+| `Classes/Monster` | Reads phases each ability cycle: cooldown, damage, radius, windup and basic-attack speed all scale |
+| `Classes/AIBrain` | Companions and monsters now use skills (rolls every 1.5s at 50%, gated by the real cooldown) |
+| `Assets/Sounds` | Swing / Hit / Block inserted from free Creator Store audio |
+
+**The ragdoll discovery worth remembering:** these rigs have **no `Motor6D` at all**. `CreateHumanoidModelFromDescription` returns a constraint rig — 15 `AnimationConstraint`s driving 14 `BallSocketConstraint`s. The first implementation did the classic Motor6D → BallSocket swap and was a silent no-op (it reported `0/0 joints`). Ragdolling a constraint rig just means disabling the `AnimationConstraint`s; the physical joints are already there. `Modules/Ragdoll` now handles both kinds, so a custom Motor6D model dropped into `ServerStorage.HunterRigs` still works.
+
+**Verified in playtest (second pass)**
+- **Ragdoll:** 15/15 → 0/15 constraints, head fell **4.20 studs**, then fully restored with `FallingDown` put back to disabled so swaps are unaffected.
+- **Blocking:** `IsBlocking` true, WalkSpeed 16 → 7.2 (×0.45). Damage 93.5 unblocked → **23.4 blocked** (exactly ×0.25), **perfect block 0.0 with the attacker stunned**.
+- **Boss phases:** 100% → base, 70% → base, 55% → **Furious**, 25% → **Enraged**; `AttackCooldown` 1.5 → 0.9.
+- **Destructibles:** survived a partial hit, shattered when health ran out, spawned exactly its 8 configured fragments.
+- **AI skills:** Han Seoa observed using both `mage_1` and `mage_skill`.
+- Clean boot throughout; damage still exact with sound wiring in place.
+
+**Measurement gotcha:** an early unblocked reading came out 69.5 instead of 93.5. That was the Healer topping the Hunter up during the 0.15s wait, not a pipeline bug — re-measured with no yield it was exactly 93.5. **Read health with no yield, or silence the Healer, when measuring damage.**
+
+**Still not done — genuinely needs the user**
+- **Animations.** The one true blocker. `Assets.Animations` is empty, `latestTest` was never open, and animation assets are not searchable through the asset tools, so no ids could be obtained. Every `AttackDefs.AnimationId` is empty and combat runs correctly without them. `CombatService` already loads, retimes to the attack's length, and cleans up a track the moment an id is filled in — including Codex's per-weapon sword combos via `AttackDefs.WeaponCombos`. **Open `latestTest` in Studio, or supply 4 published R15 ids per weapon.**
+- **Hit-reaction animations** are part of the same blocker; heavy hits currently ragdoll instead.
+- **Audio licensing** is the user's call: the three sounds are free Creator Store assets by third parties, not first-party Roblox audio. Worth confirming before a commercial release.
 
 ### Original scope (for reference)
 - `CombatService` + data-driven `AttackDefs` (hitbox, damage scale, stun, hitstop, knockback), used by players, AI companions and monsters alike.

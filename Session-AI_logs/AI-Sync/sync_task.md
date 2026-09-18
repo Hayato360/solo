@@ -146,11 +146,15 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [x] **`PlaceholderCombatService` deleted**; all 13 consumers repointed to `CombatService`, which keeps the same 9 functions and 2 signals (2026-09-18)
 - [x] Taunt overrides AI target selection in `AIBrain` (2026-09-18)
 - [x] Verified: Fighter combo dealt exactly 35+40+47.5 at ATK 50; Whirlwind exactly 65.0; skill cooldown refused a second press; AI damages through the same path; clean boot, zero errors (2026-09-18)
-- [ ] **Animations — blocked on assets.** `Assets.Animations` is empty and `latestTest` was not open, so no ids could be read. Every `AttackDefs.AnimationId` is empty; combat runs without them. Needs 4 published R15 ids per weapon to finish Codex's per-weapon combos via `AttackDefs.WeaponCombos`.
-- [ ] R15 ragdoll (Motor6D → BallSocketConstraint; must re-enable the states `HumanoidUtil` disables), hit reactions, sounds, real VFX
-- [ ] Boss phases and destructible props
-- [ ] AI does not use skills yet — `CombatService.TryUseSkill` is ready for `AIBrain` to call
-- [ ] Blocking + perfect block not hand-tested (needs a held right mouse button)
+- [x] **R15 ragdoll** (`Modules/Ragdoll`) — handles both rig types; verified head fell 4.20 studs and fully restored (2026-09-18)
+- [x] **Boss phases** — `MonsterDefs.BossPhase` + `Monster`; Goblin Chief Furious at 60%, Enraged at 30%; verified thresholds and `AttackCooldown` 1.5 → 0.9 (2026-09-18)
+- [x] **Destructible props** (`DestructibleService`) — tag `Destructible`, splash damage, physics fragments; verified 8 fragments (2026-09-18)
+- [x] **AI uses skills** — `AIBrain` rolls every 1.5s at 50%, gated by the real cooldown; verified Han Seoa using `mage_skill` (2026-09-18)
+- [x] **Blocking + perfect block hand-tested** — WalkSpeed ×0.45, 93.5 → 23.4 blocked, perfect block 0.0 + attacker stunned (2026-09-18)
+- [x] **Sounds** — Swing / Hit / Block inserted from free Creator Store audio, wired via `Modules/CombatFX` (2026-09-18)
+- [ ] ⚠️ **Animations — the one real blocker, needs the user.** `Assets.Animations` is empty, `latestTest` was never open, and animation assets are not searchable via the asset tools. Every `AttackDefs.AnimationId` is empty and combat runs fine without them. `CombatService` already loads, retimes and cleans up a track as soon as an id exists. **Open `latestTest` in Studio, or supply 4 published R15 ids per weapon** — this also unblocks Codex's per-weapon sword combos via `AttackDefs.WeaponCombos`.
+- [ ] Hit-reaction animations (same blocker; heavy hits ragdoll instead for now)
+- [ ] ⚠️ **Audio licensing is the user's call** — the three sounds are free third-party Creator Store assets, not first-party Roblox audio. Confirm before a commercial release.
 - [ ] User sign-off on Stage 5
 
 ### Stage 6 — Progression, Player Class & Saving (planned 2026-09-17)

@@ -130,6 +130,7 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 
 ### Stage 5 — Combat Deep-Dive (port from latestTest)
 - [ ] 👤 Assigned to junior developer (2026-09-17). Claude skips this stage. Notes and porting hints are in the plan.
+- [ ] Weapon-specific 4-hit combos: select the equipped weapon's four R15 attack animations, reset the combo after its timeout, and preserve server-side damage validation. No attack animation assets/IDs exist in Solo yet (2026-09-18).
 
 ### Stage 6 — Progression, Player Class & Saving (planned 2026-09-17)
 - [x] Inserted official ProfileService (asset 5331689994, loleris) as `ServerScriptService.Modules.ProfileService` after a code review (single module, only DataStoreService/RunService, no require-by-id/loadstring/getfenv) (2026-09-17)
@@ -139,6 +140,7 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [x] Team buff at user request: `RoleDefs` HP ×2, ATK ×2, DEF ×1.5 for every role; starter party power 113 → ~219, so Rank D Gates can now spawn (2026-09-17)
 - [x] 6B Leveling built + verified in playtest: `ProgressionDefs`, `StatCalc`, kill/clear EXP, level-up + Hunter Rank, real party power (rank cap), party editor (P), Lv/Rank on HUD (2026-09-17)
 - [x] 6C Items built + verified through the UI: `ItemDefs`/`RecipeDefs`, drops, 6 Guild Base structures (locked while Damaged), `InventoryService` + Bag (B), `CraftingService`, `BlacksmithService` + Signature Weapons, potions (H) / traps (T), `MenuController` buttons, TEMP `DebugService` (2026-09-17)
+- [x] `Sword01` is Fighter-only Bag gear: one copy is granted per profile and its equipped Tool model follows the custom Hunter swap flow through the R15 right hand (2026-09-18)
 - [ ] 6C hand checks: sell, potion use, unequip, trap damage, structures locked while Damaged
 - [x] 6D Player Class built + verified: `ClassDefs` (9 classes), awakening at the altar after 10 clears (first free, re-roll 50 Diamonds), switch for Gold, class modifiers via StatCalc, out-of-combat regen, Class panel (K) with reveal (2026-09-17)
 - [x] 6E Quests & recruitment built: 11 Hunters with rarity, `RecruitDefs` + `RecruitService`, `QuestDefs` + `QuestService` (3 board quests, 30-min refresh, claim at board), secret chain → Sovereign of the Abyss, Diamond sources (quests, break wins, rare drops), Quest panel (J) + tracker, Recruit panel (2026-09-17)

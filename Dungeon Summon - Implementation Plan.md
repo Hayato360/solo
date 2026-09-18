@@ -465,7 +465,7 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 > - While locked the client sets `Humanoid.AutoRotate = false` and faces the target itself (`TargetController`). Combat that rotates the character must cooperate with this, not fight it.
 > - `HumanoidUtil` disables `FallingDown` / `Ragdoll`; Stage 5 ragdolls must re-enable them deliberately, on whichever machine simulates the Humanoid.
 
-### Built notes (2026-09-18/19, v0.3.8) — combat built, taken back from the junior dev
+### Built notes (2026-09-18/19, v0.3.9) — combat built, taken back from the junior dev
 
 **Status: 🟨 built, awaiting user sign-off.** The user asked Claude to take Stage 5 over rather than keep waiting, then to carry it through to done.
 
@@ -556,7 +556,15 @@ dealt 202.5, the exact full 4-hit total at ATK 50. The flinch played at **1.48x*
 **Still open**
 - **Sword combos.** `AttackDefs.WeaponCombos` is still empty: Codex's `fighter_sword01` uses the unarmed
   chain. Needs 4 sword-specific published R15 animations.
-- **Block animation** — latestTest's is unusable; needs a new one.
+- **Block animation** — latestTest's is unusable. The guard pose is authored and waiting at
+  `ServerStorage.AnimationSources.BlockGuard` (KeyframeSequence, looping, Action2, both arms up with the
+  forearms crossed at the chest). **Publish it in the Animation Editor and paste the id into
+  `AttackDefs.Reactions.Block`** — `CombatService` already holds and releases the track with the guard.
+
+  **Why it is not simply code:** these R15 constraint rigs **revert any script write to
+  `AnimationConstraint.Transform`** — verified with the `Animate` script disabled and zero tracks
+  playing, the value read back as identity every time. A code-authored pose is impossible here; only a
+  published animation works. An earlier attempt (`Modules/BlockPose`) was removed rather than shipped.
 - **Audio licensing** is the user's call: the three sounds are free third-party Creator Store assets.
 
 ### Original scope (for reference)

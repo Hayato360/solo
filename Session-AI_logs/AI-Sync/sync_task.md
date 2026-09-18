@@ -156,7 +156,8 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [x] **Hit-reaction flinch** — latestTest's `Hit` (0.52s) verified working, played by `DamageService` at Movement priority, skipped when the hit will ragdoll anyway (2026-09-19)
 - [x] Verified: all 4 combo animations play and retime exactly (M1_2 at 1.18×, M1_4 at 0.88×); flinch at 1.48×; combo still deals the exact 202.5 (2026-09-19)
 - [ ] **Sword combos still open** — `AttackDefs.WeaponCombos` is empty, so Codex's `fighter_sword01` uses the unarmed chain. Needs 4 sword-specific published R15 animations.
-- [ ] **Block animation** — latestTest's `Block` id never loads (length stays 0 even after PreloadAsync); needs a new one
+- [ ] **Block animation — authored, needs publishing by the user.** Guard pose is ready at `ServerStorage.AnimationSources.BlockGuard` (KeyframeSequence, looping, Action2, two-handed chest guard). Publish it in the Animation Editor and paste the id into `AttackDefs.Reactions.Block`; `CombatService` already holds/releases the track with the guard.
+  - **Cannot be done in code:** these R15 constraint rigs revert any script write to `AnimationConstraint.Transform` (verified with `Animate` disabled and no tracks playing). An attempted `Modules/BlockPose` was removed rather than shipped as dead code (2026-09-19).
 - [ ] ⚠️ **Audio licensing is the user's call** — the three sounds are free third-party Creator Store assets, not first-party Roblox audio. Confirm before a commercial release.
 - [ ] User sign-off on Stage 5
 

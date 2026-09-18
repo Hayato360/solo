@@ -72,7 +72,14 @@ Cross-session task tracker. Update this file alongside `sync_log.md` when comple
   - Losing = temporary base lockout / group repair, **no permanent loss**; Gate removed + break cooldown after any break.
   - Supersedes design doc §5 storage-loss / structure-downgrade rules.
 
-- **Stage 5 ownership** (2026-09-17): Combat Deep-Dive is assigned to a junior developer. Claude continues with Stage 6; other code keeps calling `PlaceholderCombatService` functions so the combat swap stays drop-in.
+- **Stage 5 ownership** (2026-09-17): Combat Deep-Dive was assigned to a junior developer. Claude continued with Stage 6; other code kept calling `PlaceholderCombatService` functions so the combat swap stayed drop-in.
+  - **Superseded (user, 2026-09-18): Claude took Stage 5 back** ("i dont want to wait for Jr. anymore"). The drop-in discipline paid off — `CombatService` kept the placeholder's API exactly, so all 13 consumers were repointed by a rename with no logic changes.
+
+- **Combat knows nothing about progression** (2026-09-18): `DamageService` never reads levels, gear or Player Class. `StatCalc` folds all of it into the rig's `ATK`/`DEF` attributes, which is what keeps Stage 5 and Stage 6 independent.
+
+- **The server owns the combo index** (2026-09-18): the client only sends "attack pressed". This deliberately fixes the `latestTest` prototype's flaw where the server trusted a client-supplied combo number.
+
+- **Two combat pacing models** (2026-09-18): player-controlled rigs are paced by each attack's Windup/Recovery so combos feel fast; AI rigs keep their existing `AttackCooldown` attribute so Stage 1–4 balance did not shift.
 
 - **Saving: ProfileService** (user, 2026-09-17), not ProfileStore. Studio falls back to `ProfileStore.Mock` when API access is off. Dev data resets by bumping the store key.
 
@@ -128,9 +135,23 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [x] Moved test Death Box off the spawn → GateSpawn_1 line (done in Stage 4, 2026-09-17)
 - [ ] Optional / check later: floating damage/heal numbers, custom overhead HP bars, remove training dummies once monsters are verified (2026-09-17)
 
-### Stage 5 — Combat Deep-Dive (port from latestTest)
-- [ ] 👤 Assigned to junior developer (2026-09-17). Claude skips this stage. Notes and porting hints are in the plan.
-- [ ] Weapon-specific 4-hit combos: select the equipped weapon's four R15 attack animations, reset the combo after its timeout, and preserve server-side damage validation. No attack animation assets/IDs exist in Solo yet (2026-09-18).
+### Stage 5 — Combat Deep-Dive
+- [x] **Taken back from the junior developer at the user's request (2026-09-18).** Claude built the core.
+- [x] `Config/CombatDefs` + `Config/AttackDefs` (20 attacks, 5 role kits, `WeaponCombos` hook) (2026-09-18)
+- [x] `Modules/Hitbox` (cone / radius / behind / in-front queries) (2026-09-18)
+- [x] `Services/DamageService` — single damage+heal pipeline: backstab → DEF → block/perfect block → floor; stun, knockback, i-frames (2026-09-18)
+- [x] `Services/CombatService` — server-owned combo state, windup/active/recovery, skills + cooldowns, blocking, taunt, projectiles, AoE (2026-09-18)
+- [x] `Controllers/CombatController` — LMB/E attack, F skill, hold RMB block, damage numbers, camera shake (2026-09-18)
+- [x] Remotes `Combat/UseSkill`, `Combat/SetBlocking`, `Combat/CombatFeedback` (2026-09-18)
+- [x] **`PlaceholderCombatService` deleted**; all 13 consumers repointed to `CombatService`, which keeps the same 9 functions and 2 signals (2026-09-18)
+- [x] Taunt overrides AI target selection in `AIBrain` (2026-09-18)
+- [x] Verified: Fighter combo dealt exactly 35+40+47.5 at ATK 50; Whirlwind exactly 65.0; skill cooldown refused a second press; AI damages through the same path; clean boot, zero errors (2026-09-18)
+- [ ] **Animations — blocked on assets.** `Assets.Animations` is empty and `latestTest` was not open, so no ids could be read. Every `AttackDefs.AnimationId` is empty; combat runs without them. Needs 4 published R15 ids per weapon to finish Codex's per-weapon combos via `AttackDefs.WeaponCombos`.
+- [ ] R15 ragdoll (Motor6D → BallSocketConstraint; must re-enable the states `HumanoidUtil` disables), hit reactions, sounds, real VFX
+- [ ] Boss phases and destructible props
+- [ ] AI does not use skills yet — `CombatService.TryUseSkill` is ready for `AIBrain` to call
+- [ ] Blocking + perfect block not hand-tested (needs a held right mouse button)
+- [ ] User sign-off on Stage 5
 
 ### Stage 6 — Progression, Player Class & Saving (planned 2026-09-17)
 - [x] Inserted official ProfileService (asset 5331689994, loleris) as `ServerScriptService.Modules.ProfileService` after a code review (single module, only DataStoreService/RunService, no require-by-id/loadstring/getfenv) (2026-09-17)

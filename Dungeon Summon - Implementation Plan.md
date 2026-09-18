@@ -12,7 +12,7 @@ Each stage lists its goal, what to build, and how to know it's done. Build stage
 | 2     | Gate System (overworld)            | §2 Gate System                  | ✅             |
 | 3     | Gate Exploration (dungeon run)     | §1 Loop 5, §2 Modifiers         | ⏸ Check later |
 | 4     | Dungeon Break & Guild Base         | §2 Stability, §5 Hunter Base    | ✅             |
-| 5     | Combat Deep-Dive                   | §3 Hunter Roles                 | 👤 Junior dev |
+| 5     | Combat Deep-Dive                   | §3 Hunter Roles                 | 🟨 Core built |
 | 6     | Progression, Player Class & Saving | §4 Player Class, §5 Progression | ⬜             |
 | 7     | Multiplayer Party                  | §3 Multiplayer Party Rules      | ⬜             |
 | 8     | Economy & Pawn System              | §6 Economy (Phase 3+)           | ⬜             |
@@ -465,7 +465,45 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 > - While locked the client sets `Humanoid.AutoRotate = false` and faces the target itself (`TargetController`). Combat that rotates the character must cooperate with this, not fight it.
 > - `HumanoidUtil` disables `FallingDown` / `Ragdoll`; Stage 5 ragdolls must re-enable them deliberately, on whichever machine simulates the Humanoid.
 
-### Scope (detail when the stage starts)
+### Built notes (2026-09-18, v0.3.6) — core combat landed, taken back from the junior dev
+
+**Status: 🟨 core built, awaiting user sign-off.** The user asked Claude to take Stage 5 over rather than keep waiting.
+
+**Built**
+| File | What |
+|---|---|
+| `Config/CombatDefs` | Global tuning: combo reset/buffer, block + perfect block, hitstop, shake, DEF scale, backstab, damage numbers, colours |
+| `Config/AttackDefs` | **Every attack as data.** 20 attacks: Fighter 4-hit + Whirlwind, Assassin 3-hit + Shadow Step, Tank 2-hit + Taunt, Mage 3-step + Meteor, Healer Mend + Sanctuary, monster basic/ranged/boss slam. Plus `RoleKits` and a `WeaponCombos` hook |
+| `Modules/Hitbox` (shared) | Cone/radius queries, `IsBehind`, `IsInFront` |
+| `Services/DamageService` | The one place damage and healing apply. Pipeline: raw → backstab → DEF → block/perfect block → floor. Owns `Damaged` / `Healed` / `Blocked`, stun, knockback, i-frames |
+| `Services/CombatService` | Attack execution, server-owned combo state, windup/active/recovery, skills + cooldowns, blocking, taunt, projectiles, AoE. **Keeps the entire placeholder API** |
+| `Controllers/CombatController` | Input (LMB or **E** attack, **F** skill, hold **RMB** block) + damage numbers and camera shake |
+| Remotes | `Combat/UseSkill`, `Combat/SetBlocking`, `Combat/CombatFeedback` |
+
+**Key decisions and gotchas**
+- **`PlaceholderCombatService` is deleted.** `CombatService` exposes the same 9 functions and 2 signals, so all 13 consumers (AIBrain, Monster, PartyService, QuestService, StatsService, ProgressionService, ClassService, InventoryService, TargetService, GuildBaseService, DungeonInstance, HunterAIService) were repointed by a rename and needed no logic changes. `CombatService.Damaged` **is** `DamageService.Damaged` — the same Signal object — so existing `:Connect` calls keep firing.
+- **Server owns the combo index.** The client only sends "I pressed attack". This fixes the prototype's flaw where the server trusted a client-supplied combo number.
+- **Two pacing models on purpose.** Player-controlled rigs are paced by each attack's own Windup/Recovery so combos feel fast; AI rigs stay paced by their existing `AttackCooldown` attribute, so Stage 1–4 balance did not shift.
+- **Progression stays out of combat.** `DamageService` never reads levels, gear or Player Class: `StatCalc` folds all of it into the rig's `ATK`/`DEF` attributes. That is what keeps Stage 5 and Stage 6 separable.
+- **Hitboxes are tag + distance + arc, not physics queries.** R15 rigs are many loose parts, so `OverlapParams` returns the same rig repeatedly and misses limbs mid-animation.
+- **Circular require avoided again:** `PartyService` requires combat, so combat cannot require it back. `CombatService.SetControlledRigProvider` is the hook (same pattern as `SetEntryHandler` and `SetTargetProvider`).
+- **Taunt overrides every AI mode** in `AIBrain._selectTarget` — that is the entire point of pulling aggro.
+- **Target lock is respected:** a locked/preferred target jumps the hit queue, and `TryBasicAttack(attacker, preferredTarget)` kept its signature.
+
+**Verified in playtest**
+- Combo advances in order with exact scaling: Fighter at ATK 50 dealt **35 + 40 + 47.5 = 122.5** (0.7 / 0.8 / 0.95 × 50).
+- Whirlwind dealt exactly **65.0** (1.3 × 50); a second press inside the 8s cooldown was refused.
+- AI companions damage through the same path (a dummy took 1215 from companions), so the legacy route works.
+- Clean boot, zero errors, `DamageService` / `CombatService` / `CombatController` all start.
+
+**Not done — needs assets or more work**
+- **Animations.** `ReplicatedStorage.Assets.Animations` is empty and `latestTest` was not open, so no ids could be read. Every `AttackDefs` entry has an empty `AnimationId`; combat runs correctly without it and animates the moment ids are filled in. This also blocks Codex's per-weapon sword combos (`WeaponCombos` is the hook, currently empty).
+- **R15 ragdoll** (needs Motor6D → BallSocketConstraint, and must re-enable the states `HumanoidUtil` disables), hit-reaction animations, sounds, real VFX (current VFX are Neon parts and discs).
+- **Boss phases** and destructible props.
+- **AI does not use skills yet** — companions and monsters only basic-attack. `TryUseSkill` is ready for `AIBrain` to call.
+- **Blocking not hand-tested** (needs a held right mouse button).
+
+### Original scope (for reference)
 - `CombatService` + data-driven `AttackDefs` (hitbox, damage scale, stun, hitstop, knockback), used by players, AI companions and monsters alike.
 - `DamageService` pipeline: stats → block → Player Class (Stage 6) → Gate modifiers.
 - Role kits: Fighter combo, Assassin dash/backstab, Tank block + taunt, Mage projectiles + AoE, Healer heals.

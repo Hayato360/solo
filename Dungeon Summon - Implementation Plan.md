@@ -465,7 +465,7 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 > - While locked the client sets `Humanoid.AutoRotate = false` and faces the target itself (`TargetController`). Combat that rotates the character must cooperate with this, not fight it.
 > - `HumanoidUtil` disables `FallingDown` / `Ragdoll`; Stage 5 ragdolls must re-enable them deliberately, on whichever machine simulates the Humanoid.
 
-### Built notes (2026-09-18, v0.3.7) — combat built, taken back from the junior dev
+### Built notes (2026-09-18/19, v0.3.8) — combat built, taken back from the junior dev
 
 **Status: 🟨 built, awaiting user sign-off.** The user asked Claude to take Stage 5 over rather than keep waiting, then to carry it through to done.
 
@@ -519,10 +519,45 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 
 **Measurement gotcha:** an early unblocked reading came out 69.5 instead of 93.5. That was the Healer topping the Hunter up during the 0.15s wait, not a pipeline bug — re-measured with no yield it was exactly 93.5. **Read health with no yield, or silence the Healer, when measuring damage.**
 
-**Still not done — genuinely needs the user**
-- **Animations.** The one true blocker. `Assets.Animations` is empty, `latestTest` was never open, and animation assets are not searchable through the asset tools, so no ids could be obtained. Every `AttackDefs.AnimationId` is empty and combat runs correctly without them. `CombatService` already loads, retimes to the attack's length, and cleans up a track the moment an id is filled in — including Codex's per-weapon sword combos via `AttackDefs.WeaponCombos`. **Open `latestTest` in Studio, or supply 4 published R15 ids per weapon.**
-- **Hit-reaction animations** are part of the same blocker; heavy hits currently ragdoll instead.
-- **Audio licensing** is the user's call: the three sounds are free Creator Store assets by third parties, not first-party Roblox audio. Worth confirming before a commercial release.
+**Third pass — animations ported from latestTest (2026-09-19)**
+
+The user opened `latestTest`, noting its animations were melee rather than sword. Melee is exactly what
+the role chains needed: `fighter_1..4` **is** the unarmed combo. Sword-specific sets remain a separate
+concern via `WeaponCombos`.
+
+Found at `latestTest.ReplicatedStorage.CombatAnimations`. **Every id was tested on this place's rigs
+before being trusted**, because the earlier note about them was wrong:
+
+| Id | Measured | Used for |
+|---|---|---|
+| M1_1 `118869435727069` | 0.40s ✅ | `fighter_1`, `assassin_1`, `tank_1`, `monster_basic` |
+| M1_2 `86999201325099` | 0.45s ✅ | `fighter_2`, `assassin_2` |
+| M1_3 `79108635622879` | 0.50s ✅ | `fighter_3`, `assassin_3` |
+| M1_4 `135239493164447` | 0.65s ✅ | `fighter_4`, `tank_2`, both melee skills |
+| Hit `133445020667345` | 0.52s ✅ | hit-reaction flinch, played by `DamageService` |
+| Block `133152621217382` | **never loads** ❌ | unused — blocking still has no animation |
+
+- **Why they transfer cleanly:** `latestTest.Workspace.Rig` is the *same* R15 constraint rig this place
+  generates (0 Motor6D, 15 AnimationConstraints). The R6 thing in the old notes is `Workspace.Dummy`.
+- **The old note was half wrong.** It said "Hit and Block are R6". Measured: **Hit works fine**; only
+  **Block** fails to load (length stays 0 after a 5s wait, even after `PreloadAsync`).
+- **Mage and Healer deliberately have no animation** — these are unarmed punches and would look absurd
+  on a cast.
+- **`length` is 0 until the asset downloads.** A naive `AdjustSpeed(length / duration)` would divide to
+  zero and freeze the track on frame one. `CombatFX.PlayAnimation` guards it, and `CombatService.Start`
+  preloads every attack animation so the first swing of a session is animated.
+- **Tracks are cached per Animator** in `CombatFX`; calling `LoadAnimation` on every swing leaks tracks
+  and re-downloads the asset.
+
+**Verified in playtest:** all four combo animations played and were retimed exactly — M1_2 (0.45s) at
+**1.18x** to fit fighter_2's 0.38s, M1_4 (0.65s) at **0.88x** to fit fighter_4's 0.74s — while the combo
+dealt 202.5, the exact full 4-hit total at ATK 50. The flinch played at **1.48x** to fit 0.35s.
+
+**Still open**
+- **Sword combos.** `AttackDefs.WeaponCombos` is still empty: Codex's `fighter_sword01` uses the unarmed
+  chain. Needs 4 sword-specific published R15 animations.
+- **Block animation** — latestTest's is unusable; needs a new one.
+- **Audio licensing** is the user's call: the three sounds are free third-party Creator Store assets.
 
 ### Original scope (for reference)
 - `CombatService` + data-driven `AttackDefs` (hitbox, damage scale, stun, hitstop, knockback), used by players, AI companions and monsters alike.

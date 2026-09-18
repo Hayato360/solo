@@ -152,8 +152,11 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [x] **AI uses skills** — `AIBrain` rolls every 1.5s at 50%, gated by the real cooldown; verified Han Seoa using `mage_skill` (2026-09-18)
 - [x] **Blocking + perfect block hand-tested** — WalkSpeed ×0.45, 93.5 → 23.4 blocked, perfect block 0.0 + attacker stunned (2026-09-18)
 - [x] **Sounds** — Swing / Hit / Block inserted from free Creator Store audio, wired via `Modules/CombatFX` (2026-09-18)
-- [ ] ⚠️ **Animations — the one real blocker, needs the user.** `Assets.Animations` is empty, `latestTest` was never open, and animation assets are not searchable via the asset tools. Every `AttackDefs.AnimationId` is empty and combat runs fine without them. `CombatService` already loads, retimes and cleans up a track as soon as an id exists. **Open `latestTest` in Studio, or supply 4 published R15 ids per weapon** — this also unblocks Codex's per-weapon sword combos via `AttackDefs.WeaponCombos`.
-- [ ] Hit-reaction animations (same blocker; heavy hits ragdoll instead for now)
+- [x] **Animations ported from `latestTest`** (2026-09-19). User opened the place; its `ReplicatedStorage.CombatAnimations` holds a 4-hit melee combo. Melee is the right fit — `fighter_1..4` *is* the unarmed chain. Wired to Fighter, Assassin, Tank and monsters; Mage/Healer left without on purpose (punches would look wrong on a cast). `CombatFX` caches tracks per Animator and `CombatService.Start` preloads them.
+- [x] **Hit-reaction flinch** — latestTest's `Hit` (0.52s) verified working, played by `DamageService` at Movement priority, skipped when the hit will ragdoll anyway (2026-09-19)
+- [x] Verified: all 4 combo animations play and retime exactly (M1_2 at 1.18×, M1_4 at 0.88×); flinch at 1.48×; combo still deals the exact 202.5 (2026-09-19)
+- [ ] **Sword combos still open** — `AttackDefs.WeaponCombos` is empty, so Codex's `fighter_sword01` uses the unarmed chain. Needs 4 sword-specific published R15 animations.
+- [ ] **Block animation** — latestTest's `Block` id never loads (length stays 0 even after PreloadAsync); needs a new one
 - [ ] ⚠️ **Audio licensing is the user's call** — the three sounds are free third-party Creator Store assets, not first-party Roblox audio. Confirm before a commercial release.
 - [ ] User sign-off on Stage 5
 

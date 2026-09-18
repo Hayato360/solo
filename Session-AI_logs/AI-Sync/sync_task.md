@@ -159,6 +159,13 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [ ] **Block animation — authored, needs publishing by the user.** Guard pose is ready at `ServerStorage.AnimationSources.BlockGuard` (KeyframeSequence, looping, Action2, two-handed chest guard). Publish it in the Animation Editor and paste the id into `AttackDefs.Reactions.Block`; `CombatService` already holds/releases the track with the guard.
   - **Cannot be done in code:** these R15 constraint rigs revert any script write to `AnimationConstraint.Transform` (verified with `Animate` disabled and no tracks playing). An attempted `Modules/BlockPose` was removed rather than shipped as dead code (2026-09-19).
 - [ ] ⚠️ **Audio licensing is the user's call** — the three sounds are free third-party Creator Store assets, not first-party Roblox audio. Confirm before a commercial release.
+- [x] **Fixed: Fighter permanently slow** — block state stranded on swap; WalkSpeed is now derived (`HumanoidUtil.RefreshWalkSpeed`), not accumulated (2026-09-19)
+- [x] **Fixed: equipping a weapon disabled attacking** — Roblox Tools capture MouseButton1; `CombatController` now also fires on `Tool.Activated` (2026-09-19)
+- [x] **Fixed: attack animations cut short** by a stale `track:Stop()` against a cached track (2026-09-19)
+- [x] **Fixed: `EquippedWeaponId` never set**, which would have made `WeaponCombos` silently dead (2026-09-19)
+- [x] Added **`C`** as a keyboard block key; right mouse fights camera rotation and was undiscoverable (2026-09-19)
+- [ ] ⚠️ **Tool-click fix is NOT playtest-verified** — code is in, reproduction understood, but the playtest ended first. Equip Sword01 and left-click to confirm.
+- [ ] Decide whether right mouse should stay a block binding at all
 - [ ] User sign-off on Stage 5
 
 ### Stage 6 — Progression, Player Class & Saving (planned 2026-09-17)

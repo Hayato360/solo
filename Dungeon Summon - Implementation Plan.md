@@ -465,7 +465,7 @@ Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swap
 > - While locked the client sets `Humanoid.AutoRotate = false` and faces the target itself (`TargetController`). Combat that rotates the character must cooperate with this, not fight it.
 > - `HumanoidUtil` disables `FallingDown` / `Ragdoll`; Stage 5 ragdolls must re-enable them deliberately, on whichever machine simulates the Humanoid.
 
-### Built notes (2026-09-18/19, v0.3.9) — combat built, taken back from the junior dev
+### Built notes (2026-09-18/19, v0.3.10) — combat built, taken back from the junior dev
 
 **Status: 🟨 built, awaiting user sign-off.** The user asked Claude to take Stage 5 over rather than keep waiting, then to carry it through to done.
 
@@ -552,6 +552,25 @@ before being trusted**, because the earlier note about them was wrong:
 **Verified in playtest:** all four combo animations played and were retimed exactly — M1_2 (0.45s) at
 **1.18x** to fit fighter_2's 0.38s, M1_4 (0.65s) at **0.88x** to fit fighter_4's 0.74s — while the combo
 dealt 202.5, the exact full 4-hit total at ATK 50. The flinch played at **1.48x** to fit 0.35s.
+
+**Bug fixes from the user's first real play session (2026-09-19, v0.3.10)**
+
+- **Fighter permanently slow.** Holding block and swapping away stranded the old Hunter at
+  `walkSpeed 7.2` **and** `IsBlocking = true` forever (so also permanently damage-reduced). Cause: three
+  systems mutated `WalkSpeed` in place, block compounded on repeat calls, and the client fired the
+  release against the **new** rig. **Speed is now derived, never accumulated** —
+  `HumanoidUtil.RefreshWalkSpeed` recomputes `BaseWalkSpeed x stun x block` and is idempotent. It lives
+  in `HumanoidUtil` so `Hunter` (a Class) can call it on a swap without requiring a Service.
+- **Equipping a weapon disabled attacking.** A Roblox `Tool` captures `MouseButton1`, so the click
+  reached `InputBegan` with `gameProcessed = true` and was discarded — zero attacks, zero damage, with
+  the sword equipped. `CombatController` now also triggers on `Tool.Activated`.
+- **Attack animations cut short.** Cached tracks plus a delayed `track:Stop()` meant an earlier swing
+  could stop a later one. Removed; retimed tracks already end on time.
+- **`EquippedWeaponId` was never set**, so `WeaponCombos` would have silently never triggered once
+  sword animations existed. `Hunter.SetEquippedWeapon` now sets it.
+- **Overlapping stuns were NOT broken** — predicted, tested, disproved, not "fixed". Hardened anyway
+  with `stunEndsAt` so the longest stun wins.
+- **`C` added as a keyboard block key.** Right mouse fights camera rotation and proved undiscoverable.
 
 **Still open**
 - **Sword combos.** `AttackDefs.WeaponCombos` is still empty: Codex's `fighter_sword01` uses the unarmed

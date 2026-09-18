@@ -233,6 +233,21 @@ Build with these defaults until the question is answered, and keep them easy to 
 - **Verified:** auto-swap on death, party wipe → respawn, HUD HP sync, and 11 swaps in combat with no falls. The user checked the AI modes and the Q wheel and signed off on Stage 1 (2026-09-17). Studio's simulated input can't press key `1`; real keyboards are fine.
 - **Test hazard:** `World/TestArea/DeathBox` (tag `DeathBox`) + temporary `TestHazardService` instantly kills anything that touches it.
 
+### Built notes — swap camera & target lock (2026-09-18, v0.3.4)
+Added after Stage 1 was signed off, so **Stage 1 needs a quick re-verify**: swapping, camera and movement all changed.
+
+- **Swap now keeps what you were watching.** Copying the old yaw/pitch is not enough — the new Hunter stands somewhere else, so the same angle points at something else. `CameraController` raycasts from last frame's camera (250 studs, ignoring all rigs you own) to find the world point being watched, then re-aims from the new Hunter over a **0.25s** blend. Guards: skipped on first spawn (`hasFramedCharacter`, needed because `CharacterAutoLoads = false` routes the first assignment through the same signal), skipped if the aim point is under 6 or over 300 studs (the latter stops a wipe-respawn aiming you across the map).
+- **Why writing `camera.CFrame` works at all:** the default camera module re-reads its rotation from `CurrentCamera.CFrame.LookVector` every frame (`BaseCamera:GetCameraLookVector`) rather than keeping a private yaw/pitch. Bind after `Enum.RenderPriority.Camera`, write the CFrame, and the default camera carries on from there. No need to fight `PlayerModule`.
+- **Target lock (new):** tap **R** to lock the enemy nearest your view centre, tap to cycle, **hold R** (0.35s) to release. Hard lock: camera goes `Scriptable` and frames the target, `Humanoid.AutoRotate = false` and the Hunter faces the target. Because Roblox movement is camera-relative and the camera points at the target, **W/S become approach/retreat and A/D become strafe for free** — no control-script changes.
+- **`Escape` cannot be a release key.** Roblox owns it for its own menu, so the input arrives with `gameProcessed = true`. Hold-to-release instead.
+- **Cycling must not order candidates by screen angle.** The hard-lock camera re-centres on whatever is locked, so a screen-angle order reshuffles every press and ping-pongs between the same two targets. Cycle by **world-space azimuth**; use screen angle only for the first lock.
+- **`CloseLockRadius` (25 studs)** skips the 75° cone test. Without it an enemy 5 studs away but slightly behind you is unlockable, which reads as the key being broken.
+- **Server owns the lock.** `TargetService` validates team, alive, range and ownership, and auto-releases on death, out-of-range, party rebuild or leave. It is deliberately **not** inside `PlaceholderCombatService`, which Stage 5 replaces wholesale.
+- **Circular require:** `TargetService` requires `PartyService`, so `PartyService` cannot require it back. `PartyService.SetTargetProvider(fn)` is the hook, matching `GateService.SetEntryHandler`.
+- **Default health GUI is now off** (`GuiController` → `SetCoreGuiEnabled(Health, false)`). It tracks one Humanoid and reads any drop as damage, so every swap to a more damaged Hunter flashed the red vignette as if you had been hit. The party HUD already shows all three HP bars.
+- **Verified in playtest:** tap locks (target held 1.3° off screen centre), cycle visits all three bots, hold releases and restores camera / `AutoRotate` / HUD / marker, auto-release on target death logs its reason. **Not verified:** strafe feel, companions committing to the locked target in `FocusTarget` mode, swapping while locked.
+- **Training bots:** `DummyService` defaults to punching-bag mode (HP 50000, ATK 0, WalkSpeed 0, spread 14 studs). `FIGHTS_BACK = true` restores the original chasing dummy.
+
 ---
 
 ## Stage 2 — Gate System, Overworld (§2, §1 Loop 1–4)
@@ -442,6 +457,13 @@ Build with these defaults until the question is answered, and keep them easy to 
 
 > **Deferred on purpose.** Port the combat prototype from the **latestTest** place (placeId 113217941021291) here.
 > Quick notes for later: its 4-hit combo animations are already R15. `Hit` and `Block` animations are R6 and need R15 versions. The ragdoll is R6-only. `StateManager` doesn't sync to clients (replace with `StateUtil`). The server trusts the client's combo number. Hitstop, camera shake, knockback, directional block and destructible walls are worth keeping. A full review happens when this stage starts.
+
+> **Target lock exists as of 2026-09-18 (v0.3.4)** and the new combat must keep feeding it:
+> - `TargetService` (server) owns each player's locked target. Read it with `TargetService.GetTarget(player)`; **do not** put targeting back inside the combat service.
+> - `PartyService.SetTargetProvider` supplies the lock as `preferredTarget` for a basic attack. `TryBasicAttack(attacker, preferredTarget?)` already takes it — keep that parameter in `CombatService`.
+> - `HunterAIService.GetFocusTarget` prefers the lock and falls back to `Combat.GetCurrentTarget(userId)`. If `CombatService` drops `GetCurrentTarget`, that fallback needs replacing.
+> - While locked the client sets `Humanoid.AutoRotate = false` and faces the target itself (`TargetController`). Combat that rotates the character must cooperate with this, not fight it.
+> - `HumanoidUtil` disables `FallingDown` / `Ragdoll`; Stage 5 ragdolls must re-enable them deliberately, on whichever machine simulates the Humanoid.
 
 ### Scope (detail when the stage starts)
 - `CombatService` + data-driven `AttackDefs` (hitbox, damage scale, stun, hitstop, knockback), used by players, AI companions and monsters alike.

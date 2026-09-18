@@ -7,43 +7,659 @@
     <link rel="stylesheet" href="dungeon-summon-deep-dive.css">
   </head>
   <body>
+    <nav class="navbar" aria-label="สารบัญ">
+      <div class="navbar-inner">
+        <a href="#glossary">ศัพท์พื้นฐาน</a>
+        <a href="#boot">ลำดับการบูต</a>
+        <a href="#layout">ผังโฟลเดอร์</a>
+        <a href="#entergate">เส้นทาง: เข้า Gate</a>
+        <a href="#swap">การสลับตัวละคร</a>
+        <a href="#math">สูตรคำนวณจริง</a>
+        <a href="#config">ตารางค่าปรับแต่ง</a>
+        <a href="#contracts">Remote / Signal / Attribute</a>
+        <a href="#security">ความปลอดภัย</a>
+        <a href="#stages">Stage</a>
+        <a href="#status">สถานะและงานค้าง</a>
+      </div>
+    </nav>
+
     <header class="hero">
       <p class="eyebrow">Dungeon Summon · Solo place</p>
       <h1>เจาะลึกระบบจากรากโปรเจกต์ถึงการเล่นจริง</h1>
-      <p>คู่มือนี้อธิบายว่าแต่ละส่วนของ Roblox place ทำหน้าที่อะไร เริ่มระบบอย่างไร ข้อมูลเดินทางอย่างไร และเหตุใด Server จึงเป็นผู้ตัดสินผลลัพธ์ของเกม</p>
+      <p class="lede">
+        คู่มือนี้อธิบายว่าแต่ละส่วนของ Roblox place ทำหน้าที่อะไร เริ่มระบบตามลำดับไหน ข้อมูลเดินทางอย่างไร
+        และเหตุใด Server จึงเป็นผู้ตัดสินผลลัพธ์ของเกม ทุกตัวเลขและทุกชื่อฟังก์ชันในหน้านี้อ่านมาจากโค้ดจริงในเพลส
+        ไม่ใช่จากเอกสารออกแบบ ถ้าโค้ดกับเอกสารไม่ตรงกัน หน้านี้ยึดตามโค้ด
+      </p>
+      <div class="hero-facts">
+        <span>เพลส <b>Solo</b> · placeId <b>78995314774794</b></span>
+        <span>เวอร์ชัน <b>v0.3.3</b></span>
+        <span>Stage ปัจจุบัน <b>6</b> (รอ QA)</span>
+        <span>Service <b>20</b> · Controller <b>15</b> · Class <b>7</b></span>
+        <span>อ่านจาก Studio <b>2026-09-18</b></span>
+      </div>
     </header>
+
     <main>
       <section class="notice" aria-label="ขอบเขตข้อมูล">
         <strong>ยืนยันจาก Studio แล้ว</strong>
-        <span>Roblox MCP เชื่อมกับ <code>Solo</code> (placeId 78995314774794) ใน Edit mode แล้ว เนื้อหาด้านล่างอ้างอิง live hierarchy และ service/controller ที่มีอยู่จริง พร้อมใช้ handoff log เฉพาะเพื่อบอกงาน QA ที่ยังค้าง</span>
+        <span>
+          Roblox MCP เชื่อมกับเพลส <code>Solo</code> ใน Edit mode และอ่าน hierarchy, Config ทุกไฟล์,
+          และ service หลักออกมาโดยตรง ตัวเลขทั้งหมด (HP, ราคา, อัตราดรอป, สูตร EXP) คัดลอกมาจาก
+          <code>ReplicatedStorage.Config.*</code> ของจริง ส่วน session log ใช้เฉพาะเพื่อบอกว่างาน QA ใดยังค้างอยู่
+        </span>
       </section>
-      <section class="flow-section" aria-labelledby="root-flow-title">
+
+      <!-- ============ GLOSSARY ============ -->
+      <section id="glossary" aria-labelledby="glossary-title">
+        <p class="eyebrow">อ่านหน้านี้ให้เข้าใจ</p>
+        <h2 id="glossary-title">ศัพท์ 7 คำที่ต้องรู้ก่อน</h2>
+        <p class="tab-note">โปรเจกต์นี้ใช้รูปแบบ “hybrid OOP” คือแบ่งโค้ดเป็น 4 ชนิดตามหน้าที่ ไม่ใช่ตามลำดับชั้นการสืบทอด</p>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr><th>คำ</th><th>คืออะไร</th><th>ตัวอย่างจริงในเพลส</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Config</b></td>
+                <td>ตารางข้อมูลล้วน ไม่มีฟังก์ชัน ไม่มี state ใช้เก็บ “ตัวเลขที่ปรับได้” การบาลานซ์เกมควรแก้ที่นี่ที่เดียว</td>
+                <td><code>RoleDefs</code>, <code>GateDefs</code>, <code>ItemDefs</code> (16 ไฟล์)</td>
+              </tr>
+              <tr>
+                <td><b>Class</b></td>
+                <td>แม่แบบของสิ่งที่ “มีได้หลายตัวพร้อมกัน” แต่ละตัวเก็บ state ของตัวเอง และต้องมี <code>:Destroy()</code></td>
+                <td><code>Gate</code>, <code>Hunter</code>, <code>Monster</code>, <code>DungeonInstance</code> (7 ไฟล์)</td>
+              </tr>
+              <tr>
+                <td><b>Service</b></td>
+                <td>ระบบเดียวต่อเซิร์ฟเวอร์ (singleton) เป็นเจ้าของอายุของ Class ที่มันสร้าง มีเมธอด <code>Init()</code> และ <code>Start()</code></td>
+                <td><code>GateService</code> ถือ Gate ทั้งหมด, <code>PartyService</code> ถือ Party (20 ไฟล์)</td>
+              </tr>
+              <tr>
+                <td><b>Controller</b></td>
+                <td>Service ฝั่ง Client ดูแล UI กับ input อย่างเดียว ไม่ตัดสินผลเกม</td>
+                <td><code>PartyController</code>, <code>QuestController</code> (15 ไฟล์)</td>
+              </tr>
+              <tr>
+                <td><b>Remote</b></td>
+                <td>ช่องทางเดียวที่ Client คุยกับ Server ได้ <code>RemoteEvent</code> = ส่งอย่างเดียว, <code>RemoteFunction</code> = ส่งแล้วรอคำตอบ</td>
+                <td><code>Remotes/Gate/EnterGate</code> (RemoteFunction คืน ok + ข้อความ)</td>
+              </tr>
+              <tr>
+                <td><b>Attribute</b></td>
+                <td>ค่าที่แปะบน Instance แล้ว Roblox replicate ให้ Client เอง ใช้แทนการยิง Remote ถี่ ๆ</td>
+                <td>Gate model มี <code>Stability</code>, <code>SecondsLeft</code>, <code>GateState</code></td>
+              </tr>
+              <tr>
+                <td><b>Signal</b></td>
+                <td>อีเวนต์ภายในฝั่ง Server ใช้ให้ระบบคุยกันโดยไม่ต้อง require กันตรง ๆ</td>
+                <td><code>GateService.GateStabilityZero</code> → <code>DungeonBreakService</code> รับไปเริ่มเหตุการณ์</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <b>กฎที่ทำให้โค้ดไม่พัง:</b> Service เท่านั้นที่เรียก <code>.new()</code> และ <code>:Destroy()</code> ของ Class ระบบอื่นต้องขอผ่าน Service
+          (เช่น <code>GateService.GetGate(id)</code>) ห้ามเก็บ reference เอง ไม่เช่นนั้นเมื่อ Gate ถูกลบจะเหลือ reference ค้าง
+        </div>
+      </section>
+
+      <!-- ============ BOOT FLOW ============ -->
+      <section id="boot" class="flow-section" aria-labelledby="root-flow-title">
         <p class="eyebrow">ลำดับการทำงาน</p>
         <h2 id="root-flow-title">จาก Bootstrap ไปจนถึง HUD</h2>
+        <p class="tab-note">กดแต่ละกล่องเพื่อดูว่าขั้นนั้นทำอะไรจริง ๆ ในโค้ด</p>
         <div class="flow" role="list" aria-label="ลำดับการบูตระบบ">
-          <button class="flow-node active" data-node="bootstrap" role="listitem">1<br><b>Bootstrap</b><small>จุดเริ่ม Server</small></button><span class="arrow">→</span>
-          <button class="flow-node" data-node="services" role="listitem">2<br><b>Services</b><small>เจ้าของระบบ</small></button><span class="arrow">→</span>
-          <button class="flow-node" data-node="classes" role="listitem">3<br><b>Classes</b><small>วัตถุที่มีหลายตัว</small></button><span class="arrow">→</span>
-          <button class="flow-node" data-node="remotes" role="listitem">4<br><b>Remotes</b><small>สะพาน Client</small></button><span class="arrow">→</span>
+          <button class="flow-node active" data-node="bootstrap" role="listitem">1<br><b>Bootstrap</b><small>จุดเริ่ม Server</small></button><span class="arrow">&rarr;</span>
+          <button class="flow-node" data-node="services" role="listitem">2<br><b>Services</b><small>เจ้าของระบบ</small></button><span class="arrow">&rarr;</span>
+          <button class="flow-node" data-node="classes" role="listitem">3<br><b>Classes</b><small>วัตถุที่มีหลายตัว</small></button><span class="arrow">&rarr;</span>
+          <button class="flow-node" data-node="remotes" role="listitem">4<br><b>Remotes</b><small>สะพาน Client</small></button><span class="arrow">&rarr;</span>
           <button class="flow-node" data-node="client" role="listitem">5<br><b>Controllers</b><small>UI และ Input</small></button>
         </div>
         <article id="node-detail" class="detail" aria-live="polite"></article>
       </section>
+
       <section class="two-col" aria-label="ลำดับเริ่มต้นจริง">
-        <article><p class="eyebrow">Server Bootstrap ที่อ่านได้จาก Studio</p><h2>Init ทุกตัวก่อน แล้วจึง Start</h2><p>ลำดับจริงคือ <code>DataService → PlaceholderCombatService → StatsService → PartyService → HunterAIService → GateService → GuildBaseService → DungeonBreakService → WalletService → DungeonService → ProgressionService → InventoryService → CraftingService → BlacksmithService → ClassService → QuestService → RecruitService → DummyService → TestHazardService → DebugService</code></p><p>Data พร้อมก่อนสร้างปาร์ตี้, Gate พร้อมก่อน Dungeon register entry handler และระบบ progression/item/class/quest ใช้ event ของระบบก่อนหน้าได้</p></article>
-        <article><p class="eyebrow">Client Bootstrap ที่อ่านได้จาก Studio</p><h2>ข้อมูลมาก่อนเมนูและ gameplay UI</h2><p><code>GuiController → DataController → MenuController → CameraController → CharacterController → PartyController → GateController → DungeonController → DungeonBreakController → PartyEditorController → InventoryController → WorkshopController → ClassController → QuestController → RecruitController</code></p><p><code>DataController</code> รับ Snapshot และ KeyChanged ก่อน controller หน้าจออื่นใช้ข้อมูล profile เพื่อทำ HUD, bag, party editor, class, quest และ recruitment</p></article>
+        <article>
+          <p class="eyebrow">Server Bootstrap</p>
+          <h2>ทำไมต้อง Init ทุกตัวก่อน แล้วจึงค่อย Start</h2>
+          <p>
+            <code>Bootstrap</code> วน 3 รอบ: <b>รอบ 1</b> <code>require</code> ทุก ModuleScript ตาม <code>SERVICE_ORDER</code>,
+            <b>รอบ 2</b> เรียก <code>Init()</code> ทุกตัว, <b>รอบ 3</b> เรียก <code>Start()</code> ทุกตัวด้วย <code>task.spawn</code>
+          </p>
+          <p>
+            เหตุผล: <code>Init()</code> คือที่สำหรับ <b>ต่อ Signal และผูก dependency</b> ส่วน <code>Start()</code> คือที่สำหรับ
+            <b>เริ่มสร้างของจริง</b> (spawn Gate, spawn ปาร์ตี้) ถ้าใครไป connect signal ใน <code>Start()</code>
+            จะพลาดอีเวนต์แรกที่เกิดจาก Service ที่ Start ไปก่อนแล้ว — บั๊กนี้เคยเกิดจริงกับ <code>HunterAIService</code> ที่พลาดปาร์ตี้แรก
+          </p>
+          <div class="formula"><span class="cmt">-- ลำดับจริงใน SERVICE_ORDER (20 ตัว)</span>
+DataService → PlaceholderCombatService → StatsService → PartyService
+→ HunterAIService → GateService → GuildBaseService → DungeonBreakService
+→ WalletService → DungeonService → ProgressionService → InventoryService
+→ CraftingService → BlacksmithService → ClassService → QuestService
+→ RecruitService → DummyService → TestHazardService → DebugService</div>
+          <p>
+            ลำดับนี้ไม่ได้สุ่ม: <code>DataService</code> ต้องมาก่อนเพราะ <code>PartyService</code> อ่านปาร์ตี้จาก profile,
+            <code>GateService</code> ต้องมาก่อน <code>DungeonService</code> เพราะ Dungeon ไปลงทะเบียน entry handler กับ Gate,
+            และกลุ่ม progression/item/class/quest อยู่ท้ายเพราะทุกตัวฟัง Signal ของระบบก่อนหน้า
+          </p>
+          <div class="callout warn">
+            ทุก <code>require</code> และ <code>Init</code> ถูกห่อด้วย <code>pcall</code> — Service ตัวเดียวพังจะไม่ทำให้ทั้งเซิร์ฟเวอร์ตาย
+            แต่จะขึ้น <code>warn</code> แทน และถ้ามีไฟล์ใน <code>Services/</code> ที่ไม่อยู่ในลิสต์ ระบบจะเตือนว่ามันจะไม่ถูกสตาร์ต
+          </div>
+        </article>
+        <article>
+          <p class="eyebrow">Client Bootstrap</p>
+          <h2>ข้อมูลต้องมาก่อนเมนูและ gameplay UI</h2>
+          <div class="formula"><span class="cmt">-- ลำดับจริงใน CONTROLLER_ORDER (15 ตัว)</span>
+GuiController → DataController → MenuController → CameraController
+→ CharacterController → PartyController → GateController → DungeonController
+→ DungeonBreakController → PartyEditorController → InventoryController
+→ WorkshopController → ClassController → QuestController → RecruitController</div>
+          <p>
+            <code>GuiController</code> มาก่อนสุดเพราะเกมตั้ง <code>CharacterAutoLoads = false</code>
+            ทำให้ Roblox ไม่ copy <code>StarterGui</code> เข้า <code>PlayerGui</code> ให้อัตโนมัติ ต้องทำเอง
+          </p>
+          <p>
+            ถัดมาคือ <code>DataController</code> ซึ่งรับ <code>Snapshot</code> กับ <code>KeyChanged</code> แล้วเก็บสำเนา profile ไว้ในเครื่อง
+            controller ที่เหลือ (bag, party editor, class, quest, recruit) อ่านจากสำเนานี้ ไม่ต้องยิง Remote ถามซ้ำ
+          </p>
+          <p>
+            ถ้า snapshot ถูกส่งมาก่อน controller จะ connect ทัน <code>DataController</code> จะเรียก
+            <code>GetSnapshot</code> (RemoteFunction) ดึงย้อนหลังเอง — กันปัญหา race ตอนโหลด
+          </p>
+          <div class="callout">
+            <b>โครงสร้างเดียวกันทั้งสองฝั่ง:</b> ทั้ง Bootstrap และ ClientBootstrap ใช้ pattern เดียวกันเป๊ะ
+            (ลิสต์ลำดับ → require + pcall → Init ทั้งหมด → Start ทั้งหมด) อ่านตัวหนึ่งเป็น ก็อ่านอีกตัวออก
+          </div>
+        </article>
       </section>
-      <section class="two-col">
-        <article><p class="eyebrow">ผัง root ของ Roblox</p><h2>โฟลเดอร์อยู่ตรงไหนและทำไม</h2><div class="tree"><div><code>ReplicatedStorage/Config</code><span>ตารางข้อมูลปรับแต่งได้ เช่น RoleDefs, GateDefs, ItemDefs และ QuestDefs</span></div><div><code>ReplicatedStorage/Modules + Remotes</code><span>โมดูลร่วมกัน และช่องทาง RemoteFunction/RemoteEvent</span></div><div><code>ServerScriptService</code><span>Bootstrap, Services, Classes และกฎเกมที่เชื่อถือได้</span></div><div><code>ServerStorage</code><span>ต้นแบบ Gate, dungeon, rig และโครงสร้างฐาน</span></div><div><code>StarterPlayerScripts + StarterGui</code><span>Controllers, HUD, เมนู และ UI classes</span></div><div><code>Workspace</code><span>Gate, Guild Base, dungeon ที่ clone และ debris ที่กำลังใช้งาน</span></div></div></article>
-        <article><p class="eyebrow">กฎโครงสร้างสำคัญ</p><h2>ใครรับผิดชอบอายุของวัตถุ?</h2><ul><li><b>Service</b> เป็น singleton ที่ครอบครองระบบ เช่น <code>GateService</code> สร้าง ติดตาม และลบ Gate</li><li><b>Class</b> คือวัตถุที่มีหลายตัว เช่น <code>Gate</code>, <code>Hunter</code>, <code>Monster</code>, <code>DungeonInstance</code></li><li>Class ต้องมี <code>Destroy()</code> เพื่อตัด event และทำลาย Instance ที่มันสร้าง</li><li>Signal ใช้ประกาศเหตุการณ์ระหว่างระบบ เช่น Gate Stability หมด หรือปาร์ตี้ถูก wipe</li></ul></article>
+
+      <!-- ============ LAYOUT ============ -->
+      <section id="layout" class="two-col">
+        <article>
+          <p class="eyebrow">ผัง root ของ Roblox</p>
+          <h2>โฟลเดอร์อยู่ตรงไหนและทำไม</h2>
+          <div class="tree">
+            <div><code>ReplicatedStorage/Config</code><span>ตารางข้อมูลปรับแต่งได้ 16 ไฟล์ — ทั้ง Server และ Client อ่านตัวเดียวกัน จึงไม่มีตัวเลขที่ “ไม่ตรงกันสองฝั่ง”</span></div>
+            <div><code>ReplicatedStorage/Modules</code><span><code>Signal</code>, <code>StateUtil</code>, <code>HumanoidUtil</code>, <code>PowerCalc</code>, <code>StatCalc</code> — โค้ดที่ทั้งสองฝั่งใช้ร่วมกัน</span></div>
+            <div><code>ReplicatedStorage/Remotes</code><span>10 โฟลเดอร์ย่อยแบ่งตามระบบ (Party, Gate, Dungeon, Combat, Data, Items, Class, Quest, Recruit, Base)</span></div>
+            <div><code>ServerScriptService</code><span><code>Bootstrap</code> + <code>Services/</code> + <code>Classes/</code> + <code>Modules/</code> — Client มองไม่เห็นเลย จึงเป็นที่เก็บกฎที่เชื่อถือได้</span></div>
+            <div><code>ServerStorage</code><span>ต้นแบบที่ถูก clone: <code>GateModels</code>, <code>DungeonTemplates</code>, <code>HunterRigs</code>, <code>Monsters</code></span></div>
+            <div><code>StarterPlayerScripts</code><span><code>ClientBootstrap</code> + <code>Controllers/</code> + <code>UIClasses/</code> (ตัวสร้าง UI ที่มีหลายชิ้น เช่น portrait, billboard)</span></div>
+            <div><code>Workspace</code><span>ของที่กำลังใช้งานจริง: Gate ที่ spawn แล้ว, Guild Base, dungeon ที่ clone ไปไว้ไกล ๆ, ศพที่รอเก็บกวาด</span></div>
+          </div>
+        </article>
+        <article>
+          <p class="eyebrow">กฎโครงสร้างสำคัญ</p>
+          <h2>ใครรับผิดชอบอายุของวัตถุ?</h2>
+          <ul>
+            <li><b>Service เป็นเจ้าของอายุ</b> — <code>GateService</code> เท่านั้นที่ <code>Gate.new()</code> และ <code>RemoveGate()</code> ระบบอื่นขอผ่าน <code>GetGate(id)</code></li>
+            <li><b>Class ต้องมี <code>Destroy()</code></b> ที่ disconnect connection ทุกตัว (เก็บไว้ใน <code>self._connections</code>) และทำลาย Instance ที่มันสร้าง</li>
+            <li><b>Composition ไม่ใช่ inheritance</b> — <code>Hunter</code> และ <code>Monster</code> ต่าง “มี” <code>AIBrain</code> คนละตัว ไม่ได้สืบทอดจากคลาสแม่ร่วมกัน</li>
+            <li><b>ไม่มี subclass ต่อ role/rank/modifier</b> — ความต่างมาจากข้อมูลใน Config ที่คลาสเดียวอ่าน เช่น <code>GateDefs.Ranks["S"]</code></li>
+            <li><b>Class คุยออกข้างนอกด้วย Signal</b> — <code>gate.StabilityZero:Fire(gate)</code> แล้ว Service ที่เป็นเจ้าของรับไปส่งต่อ</li>
+          </ul>
+          <div class="callout">
+            <b>ทำไมต้องเข้มเรื่องนี้:</b> Gate เกิดและตายตลอดเวลา (สูงสุด 4 ตัว, spawn ใหม่ทุก 90 วินาที)
+            ถ้า connection ไม่ถูกตัดตอน Destroy จะเกิด memory leak ที่ค่อย ๆ ทำให้เซิร์ฟเวอร์ช้าลงในรอบยาว
+          </div>
+        </article>
       </section>
-      <section><p class="eyebrow">ตัวอย่างเส้นทางข้อมูล</p><h2>เมื่อผู้เล่นกด Enter Gate เกิดอะไรขึ้น?</h2><ol class="loop"><li><b>GateController</b> แสดง GatePanel จาก rank, modifier, stability และ party power ที่ Server ส่งให้</li><li>Client เรียก Remote เพื่อขอเข้า Gate ไม่ใช่คำสั่งย้ายตัวเอง</li><li><b>GateService / DungeonService</b> ตรวจว่า Gate เปิดอยู่ ปาร์ตี้เป็นของผู้ขอ ทุกคนเข้าได้ และยังมี dungeon slot</li><li><b>DungeonService</b> clone template ไปยัง slot ที่อยู่ไกลใน Workspace แล้วพา Hunter ทั้ง 3 คนเข้าไป</li><li><b>DungeonInstance</b> จัด wave, ประตู, boss และทางออก</li><li>เมื่อจบ <b>DungeonService</b> ให้รางวัล ส่ง event ให้ Progression/Inventory/Quest แล้วคืน party และ slot</li></ol></section>
-      <section><p class="eyebrow">API ที่ยืนยันจาก Studio</p><h2>Remote interfaces ที่ Client เรียกได้</h2><div class="table-responsive"><table class="table"><thead><tr><th>กลุ่ม</th><th>คำขอ / การแจ้งผล</th><th>หน้าที่</th></tr></thead><tbody><tr><td>Party</td><td><code>RequestSwap, SetAIMode, GetPartyState, SetParty, PartyState</code></td><td>สลับ Hunter, เปลี่ยน AI, อ่าน/จัดปาร์ตี้</td></tr><tr><td>Gate + Dungeon</td><td><code>GetGateInfo, EnterGate, DungeonState, Results, Message</code></td><td>ประเมิน Gate, ขอเข้า, แจ้งสถานะและผลดันเจี้ยน</td></tr><tr><td>Data + Items</td><td><code>Snapshot, GetSnapshot, KeyChanged, Equip, Unequip, Sell, UseConsumable, Craft, Upgrade, ForgeSignature</code></td><td>sync profile และคำสั่ง inventory</td></tr><tr><td>Class + Quest + Recruit</td><td><code>Awaken, SwitchClass, Claim, AcceptSecret, Recruit</code></td><td>ปลุกพลัง, claim quest, secret chain และสุ่ม Hunter</td></tr></tbody></table></div></section>
-      <section class="two-col"><article><p class="eyebrow">ความปลอดภัยของเกม</p><h2>ทำไม Client แก้ Gold หรือดาเมจเองไม่ได้</h2><p>Client รับปุ่มและแสดงผล แต่ไม่ใช่แหล่งความจริง Server ตรวจ ownership, ระยะ, cooldown, สถานะมีชีวิต และ state ของเกมก่อนแก้ข้อมูล</p><p>ข้อมูลถาวรผ่าน <code>DataService</code> และ ProfileService; WalletService เป็น API สำหรับ Gold/Diamonds</p></article><article><p class="eyebrow">สัญญาระหว่างระบบ</p><h2>dependency ที่ตั้งใจให้เปลี่ยนได้</h2><p>Stage 5 ใช้ <code>PlaceholderCombatService</code> เป็นจุดกลางของ damage. Stage 6 ส่ง modifier เป็น attributes/stat data จึงเปลี่ยนเป็น CombatService และ DamageService ภายหลังได้</p><p>PartyService ยังเป็นเจ้าของปาร์ตี้และการสลับ Hunter แม้ Gate, Dungeon และ UI จะใช้ข้อมูลพลังของปาร์ตี้</p></article></section>
-      <section aria-labelledby="stage-title"><p class="eyebrow">แผนการพัฒนา</p><h2 id="stage-title">เลือก Stage เพื่อดูรายละเอียดเชิงระบบ</h2><div class="stage-picker" id="stage-picker"></div><article id="stage-detail" class="detail stage-detail" aria-live="polite"></article></section>
-      <section class="two-col"><article><p class="eyebrow">สถานะปัจจุบัน</p><h2>Stage 6 รอการตรวจด้วยมือ</h2><ul><li>6A: ProfileService store <code>PlayerData_v1</code>, ข้อมูลผู้เล่น, Gold/Diamonds และ session lock</li><li>6B: EXP, level, rank, party editor และ party power</li><li>6C: inventory, crafting, blacksmith, signature weapon, potion/trap</li><li>6D: awakening และ Player Class</li><li>6E: quest board, secret quest และ recruitment</li></ul></article><article><p class="eyebrow">รายการที่ต้องทดสอบ</p><h2>สิ่งที่ควรเปิด Studio แล้วลองต่อ</h2><ul><li>ขายของ ใช้ potion ถอด gear และดู trap ทำดาเมจ</li><li>ทำให้ Guild Base Damaged แล้วตรวจว่า structure ถูก lock</li><li>รับ secret quest, recruit Hunter และใส่ปาร์ตี้</li><li>รอ quest board refresh และตรวจผล rollover</li><li>Stage 3 edge cases: Red Gate, Berserk, party wipe/eject</li></ul></article></section>
+
+      <!-- ============ ENTER GATE ============ -->
+      <section id="entergate">
+        <p class="eyebrow">ตัวอย่างเส้นทางข้อมูล</p>
+        <h2>เมื่อผู้เล่นกด Enter Gate เกิดอะไรขึ้น (ทีละบรรทัดจากโค้ดจริง)</h2>
+        <ol class="loop">
+          <li>
+            <b>Client:</b> <code>GateController</code> เรียก <code>GetGateInfo(gateId)</code> (RemoteFunction)
+            Server ตอบกลับด้วย rank, stability, วินาทีที่เหลือ, modifier, <code>PartyPower</code> ของผู้เล่นคนนั้น
+            และ <code>Risk</code> ที่คำนวณจาก <code>PowerCalc.RiskLevel</code> แล้ว <code>GatePanel</code> เอาไปแสดง
+          </li>
+          <li>
+            <b>Client:</b> ผู้เล่นกดปุ่ม Enter → เรียก <code>EnterGate(gateId)</code>
+            สังเกตว่า Client <b>ขอ</b> ให้เข้า ไม่ใช่สั่งย้ายตัวเอง Client ไม่มีสิทธิ์ teleport
+          </li>
+          <li>
+            <b>Server (<code>GateService</code>) ตรวจ 4 ข้อ:</b> gateId เป็น string จริงไหม → Gate ยังอยู่และสถานะเป็น <code>Open</code> ไหม
+            → Hunter ที่ควบคุมอยู่ยังไม่ตายไหม → อยู่ห่างจาก Gate ไม่เกิน <code>EnterDistance</code> = <b>20 studs</b> ไหม
+          </li>
+          <li>
+            <b>Server ส่งต่อให้ <code>DungeonService.TryEnter</code></b> ซึ่งตรวจอีกชั้น: ปาร์ตี้ไม่ wipe, ยังไม่ได้อยู่ใน Gate อื่น,
+            Gate ยัง Open, rank นี้มี dungeon template, และยังมี slot ว่าง (สูงสุด <code>MaxSlots</code> = <b>20</b> ชุดพร้อมกัน)
+          </li>
+          <li>
+            <b>Server:</b> Gate เปลี่ยนเป็น <code>InProgress</code> → clone template ไปที่
+            <code>SlotOrigin</code> <code>(10000, 0, 0)</code> ห่างกัน slot ละ <b>2000 studs</b> (ไกลจาก overworld จนไม่กวนกัน)
+            → สร้าง <code>DungeonInstance</code> → แปะ attribute <code>InDungeon = true</code> บนตัวผู้เล่น
+          </li>
+          <li>
+            <b>Server:</b> <code>DungeonInstance</code> คุมทุกอย่างในนั้น — trigger ห้อง (เช็กทุก <b>0.25 วินาที</b>),
+            wave มอนสเตอร์ (Room 1 = 3 ตัว, Room 2 = 4 ตัว), ประตูที่เปิดเมื่อเคลียร์, บอส, และทางออก
+          </li>
+          <li>
+            <b>จบรอบ:</b> <code>DungeonService</code> จ่ายรางวัล แล้วยิง Signal <code>PlayerCleared</code>
+            ซึ่ง <code>ProgressionService</code> (EXP), <code>InventoryService</code> (ดรอป) และ <code>QuestService</code> (ความคืบหน้า) รับไปพร้อมกัน
+            จากนั้นคืนปาร์ตี้ออกมาและปล่อย slot
+          </li>
+        </ol>
+        <div class="callout warn">
+          <b>ทางออกที่ไม่ใช่การเคลียร์ก็ถูกจัดการหมด:</b> ออกเอง → Gate กลับเป็น <code>Open</code> และเสียความคืบหน้า ·
+          ปาร์ตี้ wipe → Gate โดนหัก stability <b>10%</b> แล้วกลับเป็น <code>Open</code> ·
+          Gate แตกขณะอยู่ข้างใน → ถูกเด้งออกพร้อมข้อความ (เคสนี้ยังอยู่ในรายการรอทดสอบ)
+        </div>
+      </section>
+
+      <!-- ============ CHARACTER SWAP ============ -->
+      <section id="swap">
+        <p class="eyebrow">กลไกเอกลักษณ์ของเกม</p>
+        <h2>การสลับตัวละคร (Character Swap) ทำงานอย่างไร</h2>
+        <p class="tab-note">
+          นี่คือกลไกที่ยากที่สุดในโปรเจกต์และเป็นจุดที่เจอบั๊กมากที่สุด เพราะมันฝืนสิ่งที่ Roblox ตั้งใจให้เป็น
+          หัวข้อนี้อธิบายตั้งแต่สิ่งที่ผู้เล่นเห็น ไปจนถึงสิ่งที่เกิดขึ้นจริงในหน่วยความจำ
+        </p>
+
+        <div class="two-col">
+          <article>
+            <h3>สิ่งที่ผู้เล่นเห็น</h3>
+            <p>
+              กด <code>1</code>, <code>2</code>, <code>3</code> หรือคลิกรูป portrait บน HUD แล้วผู้เล่นก็ย้ายไปบังคับ Hunter อีกตัวทันที
+              ตัวที่เพิ่งปล่อยจะกลายเป็น AI สู้ต่อเอง ส่วนตัวที่เพิ่งรับมาก็เดินตามคีย์ของผู้เล่นได้เลย
+            </p>
+            <h3>สิ่งที่เกิดขึ้นจริง</h3>
+            <p>
+              เกมไม่ได้ “ย้ายวิญญาณ” ผู้เล่นไปอีกร่าง แต่<b>เปลี่ยนค่า <code>player.Character</code> ให้ชี้ไปที่ rig อีกตัวที่มีอยู่แล้วในโลก</b>
+              ทั้ง 3 rig ถูก spawn พร้อมกันตั้งแต่ต้นและอยู่ในโลกตลอดเวลา ไม่มีการสร้างหรือลบตอนสลับ
+            </p>
+            <div class="callout warn">
+              <b>ปัญหาที่ทำให้เรื่องนี้ยาก:</b> เมื่อ assign <code>player.Character</code> ตัวใหม่
+              Roblox จะ <b>ทำลายโมเดลตัวเก่าทิ้งทันที</b> ถ้าไม่ทำอะไรเลย Hunter ที่เพิ่งปล่อยจะหายไปจากเกมทุกครั้งที่สลับ
+            </div>
+          </article>
+          <article>
+            <h3>ทางแก้: ย้ายร่างออกก่อนแล้วปล่อยให้ทำลาย “เปลือกเปล่า”</h3>
+            <p>
+              <code>Hunter:_detachFromCharacter()</code> จะสร้าง <code>Model</code> ใหม่ขึ้นมา แล้วย้ายของทุกชิ้นจากโมเดลเดิมเข้าไป
+              สิ่งที่ Roblox ทำลายจึงเหลือแค่เปลือกที่ว่างเปล่า
+            </p>
+            <div class="formula"><span class="cmt">-- ลำดับสำคัญมาก</span>
+1. สร้าง Model ใหม่
+2. copy attributes ทุกตัว
+3. copy CollectionService tags ทุกอัน
+4. ย้ายลูกทุกตัว <span class="cmt">ยกเว้น Humanoid</span>
+5. ย้าย Humanoid <span class="cmt">เป็นอันสุดท้าย</span>
+6. ตั้ง PrimaryPart แล้วชี้ self.Rig ไปที่ Model ใหม่</div>
+            <p>
+              <b>ทำไม Humanoid ต้องย้ายท้ายสุด:</b> ถ้าย้าย Humanoid เข้าไปก่อน มันจะอยู่ใน Model ที่ยังไม่มีชิ้นส่วนร่างกาย
+              Roblox จะถือว่าร่างไม่สมบูรณ์และอาจสั่งให้ตาย
+            </p>
+            <div class="callout">
+              <b>ข้อดีของวิธีนี้:</b> ตัว <code>Humanoid</code> และ part ทุกชิ้นเป็น instance <b>เดิม</b> ไม่ได้ถูก clone ใหม่
+              connection ที่ต่อไว้ เช่น <code>Humanoid.Died</code> และ HP ปัจจุบัน จึงรอดมาทั้งหมด ไม่ต้องต่อใหม่
+            </div>
+          </article>
+        </div>
+
+        <h3>ลำดับเหตุการณ์เต็ม ตั้งแต่กดปุ่มจนกล้องตาม</h3>
+        <ol class="loop">
+          <li>
+            <b>Client:</b> <code>PartyController</code> จับปุ่ม <code>1/2/3</code> หรือคลิก portrait แล้วยิง
+            <code>Remotes/Party/RequestSwap</code> พร้อมเลข slot — ส่งแค่ <b>ตัวเลข</b> ไม่ได้ส่งคำสั่งอะไรมากกว่านั้น
+          </li>
+          <li>
+            <b>Server (<code>Party:RequestSwap</code>) ตรวจ 5 ด่าน</b> ตามลำดับ แล้วคืนเหตุผลถ้าไม่ผ่าน:
+            ปาร์ตี้ wipe อยู่หรือเปล่า (<code>Wiped</code>) → slot นี้มีจริงไหม (<code>InvalidSlot</code>) →
+            เป็นตัวที่บังคับอยู่แล้วหรือเปล่า (<code>AlreadyActive</code>) → ตัวเป้าหมายยังมีชีวิตไหม (<code>Dead</code>) →
+            ผ่าน cooldown <b>1 วินาที</b> แล้วหรือยัง (<code>Cooldown</code>)
+          </li>
+          <li>
+            <b>ปล่อยตัวเก่าก่อนเสมอ</b> — <code>previous:SetControlled(false)</code>:
+            ลบสคริปต์ <code>Animate</code> ออกจาก rig → เรียก <code>_detachFromCharacter()</code> →
+            คืน network ownership ให้ Server → จับตัวยืนตรงด้วย <code>HumanoidUtil.Upright</code> +
+            <code>Stabilize</code> → เริ่ม <code>RigAnimator</code> ฝั่ง Server ให้เล่นอนิเมชันเดินแทน
+          </li>
+          <li>
+            <b>แล้วจึงรับตัวใหม่</b> — <code>next:SetControlled(true)</code>:
+            หยุด <code>RigAnimator</code> ฝั่ง Server → <code>Owner.Character = Rig</code> →
+            <code>SetNetworkOwner(player)</code> ให้ผู้เล่นได้สิทธิ์ simulate → ใส่สำเนาสคริปต์ <code>Animate</code> กลับเข้า rig
+          </li>
+          <li>
+            <b>Client ตอบสนองต่อการเปลี่ยน:</b> ทั้ง <code>CameraController</code> และ <code>CharacterController</code>
+            ฟัง <code>player:GetPropertyChangedSignal("Character")</code>
+            ตัวแรกตั้ง <code>camera.CameraSubject</code> เป็น Humanoid ตัวใหม่
+            ตัวหลังเรียก <code>Upright</code> + <code>Stabilize</code> ฝั่ง Client
+          </li>
+          <li>
+            <b>HUD อัปเดต:</b> <code>party.Changed</code> ยิง → Server ส่ง <code>PartyState</code> ให้เจ้าของ →
+            portrait ย้ายกรอบเน้นไปที่ slot ใหม่
+          </li>
+        </ol>
+
+        <div class="three-col">
+          <article>
+            <h3>ทำไมต้องมี <code>Animate</code> สองสถานะ</h3>
+            <p>
+              สคริปต์ <code>Animate</code> ของ Roblox ทำงานได้เฉพาะกับตัวละครที่ผู้เล่นควบคุม
+              ตอน <code>Hunter.new</code> จึงดึงมันออกจาก rig เก็บไว้เป็น template (<code>animateTemplate.Parent = nil</code>)
+            </p>
+            <p>
+              <b>ควบคุมอยู่</b> = ใส่สำเนา <code>Animate</code> เข้าไป ให้ Client เล่นอนิเมชันเอง ·
+              <b>เป็น AI</b> = ลบทิ้ง แล้วใช้ <code>RigAnimator</code> ฝั่ง Server แทน
+            </p>
+          </article>
+          <article>
+            <h3>ใครเป็นคน simulate ร่างไหน</h3>
+            <p>
+              Roblox ให้เครื่องที่ถือ <b>network ownership</b> เป็นคนคำนวณฟิสิกส์ของร่างนั้น
+              rig ที่ผู้เล่นบังคับ = เครื่องผู้เล่น · อีก 2 ตัว = Server (<code>RigFactory.SetServerOwned</code>)
+            </p>
+            <div class="callout">
+              ถ้าไม่บังคับให้เป็นของ Server Roblox จะยกความเป็นเจ้าของของ rig ที่อยู่ใกล้ผู้เล่นให้ผู้เล่นโดยอัตโนมัติ
+              ซึ่งทำให้ AI กระตุกและเปิดช่องให้โกง
+            </div>
+          </article>
+          <article>
+            <h3>บั๊ก <code>FallingDown</code> ที่ทำให้ดูเหมือนตาย</h3>
+            <p>
+              การย้ายร่างข้าม Model ทำให้ Humanoid ตกไปอยู่สถานะ <code>FallingDown</code> — ตัวละครล้มลงกับพื้น
+              และตายได้จริงจากการตรวจ “คอหลุด”
+            </p>
+            <p>
+              <code>HumanoidUtil</code> จึงปิดสถานะ <code>FallingDown</code> และ <code>Ragdoll</code> ทิ้ง
+              (การล้มจะมาจากระบบ combat ของเราเองใน Stage 5 เท่านั้น) และตั้ง <code>RequiresNeck = false</code>
+            </p>
+          </article>
+        </div>
+
+        <div class="callout warn">
+          <b>จุดที่พลาดง่ายที่สุด:</b> <code>SetStateEnabled</code> ของ Humanoid <b>ไม่ replicate</b> ข้ามเครื่อง
+          แปลว่าเครื่องไหนเป็นคน simulate เครื่องนั้นต้องเรียก <code>Stabilize</code> เอง
+          นี่คือเหตุผลเดียวที่ <code>CharacterController</code> ฝั่ง Client มีอยู่ — ถ้าตั้งแต่ฝั่ง Server อย่างเดียว
+          rig ที่ผู้เล่นบังคับจะยังล้มอยู่ดี
+        </div>
+
+        <h3>สลับอัตโนมัติเมื่อตาย และการ wipe</h3>
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>สถานการณ์</th><th>ระบบทำอะไร</th><th>ค่าในโค้ด</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Hunter ที่กำลังบังคับตาย แต่ยังมีตัวอื่นรอด</td>
+                <td>หน่วงเวลาสั้น ๆ ให้เห็นจังหวะตาย แล้ววนหาตัวถัดไปที่ยังมีชีวิต (<code>_findNextAlive</code> วนแบบวงกลม) แล้วสลับให้เอง</td>
+                <td>หน่วง <b>0.6 วินาที</b></td>
+              </tr>
+              <tr>
+                <td>Hunter ตัวที่ไม่ได้บังคับตาย</td>
+                <td>อัปเดต HUD อย่างเดียว ไม่สลับ</td>
+                <td>ยิง <code>Changed</code></td>
+              </tr>
+              <tr>
+                <td>ตายครบทั้ง 3 ตัว</td>
+                <td>ตั้ง <code>IsWiped = true</code> แล้วยิง <code>Wiped</code> → <code>PartyService</code> ตั้งเวลา respawn ·
+                ถ้าอยู่ใน Gate <code>DungeonService</code> หัก stability 10% แล้วเด้งออก</td>
+                <td>respawn ใน <b>5 วินาที</b></td>
+              </tr>
+              <tr>
+                <td>สลับตัวระหว่างที่ปาร์ตี้ wipe</td>
+                <td>ปฏิเสธด้วยเหตุผล <code>Wiped</code></td>
+                <td>ด่านแรกของ <code>RequestSwap</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tab-note">
+          การหน่วง 0.6 วินาทีมี guard ซ้อนอยู่: ก่อนสลับจริงจะเช็กอีกครั้งว่าปาร์ตี้ยังไม่ถูกทำลาย ยังไม่ wipe
+          และตัวที่บังคับอยู่ยังเป็นตัวที่เพิ่งตาย — กันกรณีที่ผู้เล่นกดสลับเองทันภายใน 0.6 วินาทีนั้น
+        </p>
+
+        <div class="callout">
+          <b>ตำแหน่งตอน spawn:</b> ทั้ง 3 rig เกิดเป็นรูปสามเหลี่ยมรอบจุด origin —
+          <code>(0,0,0)</code>, <code>(-5,0,5)</code>, <code>(5,0,5)</code> — และ slot 1 เป็นตัวที่ถูกควบคุมเสมอ
+          <br><br>
+          <b>ข้อจำกัดตอนทดสอบ:</b> ระบบจำลองคีย์บอร์ดผ่าน MCP <b>กดปุ่ม <code>1</code> ไม่ได้</b>
+          การทดสอบสลับไปยัง slot 1 จึงต้องกดเองหรือใช้การคลิก portrait แทน
+        </div>
+      </section>
+
+      <!-- ============ MATH ============ -->
+      <section id="math">
+        <p class="eyebrow">สูตรคำนวณจริง</p>
+        <h2>ตัวเลขในเกมมาจากไหน</h2>
+        <p class="tab-note">สามสูตรนี้คือหัวใจของการบาลานซ์ทั้งเกม ทุกอย่างที่เหลือต่อยอดจากสามตัวนี้</p>
+
+        <div class="three-col">
+          <article>
+            <h3>1. พลังของ Hunter</h3>
+            <p>อยู่ใน <code>Modules/StatCalc.HunterStats</code> ซึ่งทั้ง Server และ UI ฝั่ง Client เรียกตัวเดียวกัน</p>
+            <div class="formula"><span class="cmt">growth = (1 + 0.06 x (Level-1))
+        x RarityStatMultiplier</span>
+
+HP  = RoleDefs.HP  x growth
+ATK = RoleDefs.ATK x growth
+DEF = RoleDefs.DEF x growth
+
+<span class="cmt">แล้วบวก Flat (เกียร์) ก่อน
+คูณ Multiplier (Player Class)</span>
+
+Power = ATK x 2 + DEF + HP / 10</div>
+            <p>
+              ลำดับสำคัญ: <b>บวกก่อน คูณทีหลัง</b> เกียร์ให้ค่าแบบ flat ส่วน Player Class ให้แบบคูณ
+              คลาสจึงยิ่งแรงขึ้นเมื่อผู้เล่นมีเกียร์ดี
+            </p>
+          </article>
+          <article>
+            <h3>2. Stability ของ Gate</h3>
+            <p>อยู่ใน <code>Classes/Gate.Tick</code> ถูกเรียกทุกเฟรมจาก <code>GateService</code></p>
+            <div class="formula"><span class="cmt">-- ต่อวินาที</span>
+drain = 100 / (StabilityMinutes x 60)
+      x StabilitySpeed
+      x playerScale
+
+<span class="cmt">playerScale:
+  0 คน = 0 (หยุดนิ่ง)
+  1-2 คน = 0.5
+  3 คนขึ้นไป = 1</span>
+
+Stability = max(floor, Stability - drain x dt)</div>
+            <p>
+              <code>floor</code> ปกติเป็น 0 แต่จะกลายเป็น <b>5%</b> เมื่อมี break อื่นทำงานอยู่ หรือยังติด cooldown 300 วินาที —
+              Gate อื่นจึงค้างที่ 5% รอคิว ไม่แตกพร้อมกันหมด
+            </p>
+          </article>
+          <article>
+            <h3>3. EXP และ Rank</h3>
+            <p>อยู่ใน <code>ProgressionDefs</code> + <code>StatCalc.ExpToNext</code></p>
+            <div class="formula"><span class="cmt">-- EXP ที่ต้องใช้ขึ้นเลเวลถัดไป</span>
+ExpToNext(L) = floor(100 x L ^ 1.5)
+
+<span class="cmt">Lv 1 → 2 : 100
+Lv 10 → 11 : 3,162
+Lv 49 → 50 : 34,300</span>
+
+<span class="cmt">-- ฆ่ามอนสเตอร์</span>
+ทั้งปาร์ตี้ได้ KillExp x RankMultiplier
+คนที่ลงดาบสุดท้ายได้เพิ่มอีก 50%</div>
+            <p>
+              Hunter Rank ไม่ได้ขึ้นกับเลเวลอย่างเดียว ต้องผ่าน <b>ทั้ง</b> เลเวลขั้นต่ำ <b>และ</b> จำนวน Gate ที่ผู้เล่นเคลียร์สะสม
+            </p>
+          </article>
+        </div>
+
+        <h3>ตัวอย่างคำนวณจริง: ปาร์ตี้เริ่มต้น</h3>
+        <p class="tab-note">ลองแทนค่าจาก <code>RoleDefs</code> จริงกับ 3 Hunter เริ่มต้น (ทุกตัว Lv 1, Rarity Common จึงคูณ 1.0)</p>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr><th>Hunter</th><th>Role</th><th class="num">HP</th><th class="num">ATK</th><th class="num">DEF</th><th class="num">Power = ATK&times;2 + DEF + HP/10</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Kang Doyun</td><td>Fighter</td><td class="num">240</td><td class="num">24</td><td class="num">12</td><td class="num">48 + 12 + 24 = <b>84</b></td></tr>
+              <tr><td>Han Seoa</td><td>Mage</td><td class="num">140</td><td class="num">36</td><td class="num">5</td><td class="num">72 + 5 + 14 = <b>91</b></td></tr>
+              <tr><td>Choi Mina</td><td>Healer</td><td class="num">160</td><td class="num">10</td><td class="num">8</td><td class="num">20 + 8 + 16 = <b>44</b></td></tr>
+              <tr><td colspan="5"><b>รวม Party Power</b></td><td class="num"><b>219</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <b>219 นี้ตัดสินอะไรบ้าง:</b>
+          <br>· <b>Risk</b> ที่แสดงบน GatePanel — เทียบกับ <code>RecommendedPower</code> ของ Gate: &ge;100% = Safe, &ge;70% = Risky, ต่ำกว่านั้น = Dangerous
+          <br>&nbsp;&nbsp;Gate E (100) &rarr; 219% = <span class="badge ok">Safe</span> · Gate D (200) &rarr; 110% = <span class="badge ok">Safe</span> · Gate C (400) &rarr; 55% = <span class="badge hot">Dangerous</span>
+          <br>· <b>Gate rank cap</b> — Gate จะ spawn ได้เฉพาะ rank ที่ <code>RecommendedPower &le; 219 &times; 1.5 = 328.5</code> ดังนั้นตอนนี้เกิดได้แค่ <b>E และ D</b>
+          <br>· ถ้าผู้เล่นที่แข็งที่สุดออกจากเกม Gate ที่เกิน cap จะ <b>หยุดนับ stability</b> ทันที (ยกเว้น rank E ที่ไม่มีวันหยุด)
+        </div>
+
+        <h3>ตัวอย่างคำนวณจริง: ราคาที่ Blacksmith</h3>
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>การกระทำ</th><th>สูตรในโค้ด</th><th>แทนค่า</th><th>ผลจริงที่เห็นในเกม</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>อัปเกรด Hunter Blade (Rare) +0 &rarr; +1</td>
+                <td><code>GoldBase &times; (L+1) &times; RarityCost</code></td>
+                <td>30 &times; 1 &times; 2</td>
+                <td><b>60 Gold</b> + iron_ore 1 + mana_crystal 1</td>
+              </tr>
+              <tr>
+                <td>ตี Signature Weapon ระดับ 1 (forge)</td>
+                <td><code>GoldPerLevel &times; targetLevel</code></td>
+                <td>150 &times; 1</td>
+                <td><b>150 Gold</b> + iron_ore 3 + mana_crystal 1</td>
+              </tr>
+              <tr>
+                <td>Signature ระดับ 2 (หารด้วย 2 ลงตัว)</td>
+                <td>+ <code>gate_core</code> ทุกระดับคู่</td>
+                <td>150 &times; 2</td>
+                <td><b>300 Gold</b> + iron_ore 6 + mana_crystal 2 + <b>gate_core 1</b></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tab-note">
+          ตัวเลขสองแถวแรกตรงกับที่บันทึกไว้ตอน playtest จริง (&minus;60 Gold ตอน +1 และ &minus;150 Gold ตอนตี Oath Blade) —
+          เป็นการยืนยันว่าสูตรในโค้ดกับพฤติกรรมในเกมตรงกัน
+        </p>
+      </section>
+
+      <!-- ============ CONFIG TABLES ============ -->
+      <section id="config" aria-labelledby="config-title">
+        <p class="eyebrow">ตารางค่าปรับแต่ง</p>
+        <h2 id="config-title">ค่าทั้งหมดที่คัดมาจาก Config จริง</h2>
+        <p class="tab-note">
+          ทุกตารางข้างล่างอ่านตรงจาก <code>ReplicatedStorage.Config</code> ในเพลส ถ้าจะบาลานซ์เกม แก้ที่ไฟล์เหล่านี้ไฟล์เดียวพอ
+          ไม่ต้องไปตามแก้ใน service — กดแท็บเพื่อสลับตาราง
+        </p>
+        <div class="tabs" id="config-tabs"></div>
+        <div id="config-panel" aria-live="polite"></div>
+      </section>
+
+      <!-- ============ CONTRACTS ============ -->
+      <section id="contracts">
+        <p class="eyebrow">สัญญาระหว่างระบบ</p>
+        <h2>ช่องทางสื่อสาร 3 แบบ และใช้ตอนไหน</h2>
+        <div class="tabs" id="contract-tabs"></div>
+        <div id="contract-panel" aria-live="polite"></div>
+      </section>
+
+      <!-- ============ SECURITY ============ -->
+      <section id="security" class="two-col">
+        <article>
+          <p class="eyebrow">ความปลอดภัยของเกม</p>
+          <h2>ทำไม Client แก้ Gold หรือดาเมจเองไม่ได้</h2>
+          <p>
+            Client รับปุ่มและแสดงผล แต่ไม่ใช่แหล่งความจริง ทุก Remote handler บน Server ตรวจก่อนเสมอ
+            ตัวอย่างจริงที่อ่านได้จากโค้ด:
+          </p>
+          <ul>
+            <li><b>ตรวจชนิดข้อมูล</b> — <code>if typeof(gateId) ~= "string" then return false end</code> ทุกตัวแปรที่รับจาก Client</li>
+            <li><b>ตรวจระยะ</b> — เข้า Gate ต้องอยู่ใน 20 studs, ใช้โครงสร้างในฐานต้องอยู่ใน <code>StructureRange</code> 18 studs</li>
+            <li><b>ตรวจความเป็นเจ้าของ</b> — สลับ Hunter ได้เฉพาะในปาร์ตี้ของตัวเอง, ใส่เกียร์ได้เฉพาะ Hunter ที่ตัวเองมี</li>
+            <li><b>ตรวจสถานะเกม</b> — เปลี่ยนปาร์ตี้ไม่ได้ตอน <code>InDungeon</code>, ใช้โครงสร้างไม่ได้ตอนฐาน <code>Damaged</code></li>
+            <li><b>ตรวจก่อนหักเงิน</b> — craft และ upgrade เช็ก Gold และวัสดุให้ครบก่อน แล้วจึงหักทั้งคู่ (all or nothing)</li>
+          </ul>
+          <p>
+            ข้อมูลถาวรไหลผ่าน <code>DataService</code> ที่เดียว ซึ่งเป็นโค้ดชิ้นเดียวในเกมที่แตะ DataStore
+            ระบบอื่นเขียนผ่าน <code>Set</code> / <code>Update</code> / <code>Increment</code> เพื่อให้ทุกการเปลี่ยนแปลง replicate อัตโนมัติ
+          </p>
+        </article>
+        <article>
+          <p class="eyebrow">dependency ที่ตั้งใจให้เปลี่ยนได้</p>
+          <h2>จุดที่ออกแบบไว้ให้ถอดเปลี่ยนทีหลัง</h2>
+          <p>
+            <b>Combat (Stage 5):</b> ตอนนี้ดาเมจทั้งหมดผ่าน <code>PlaceholderCombatService</code> ตัวเดียว
+            Stage 6 ไม่ได้ยุ่งกับสูตรดาเมจเลย แต่ส่งค่าผ่าน <b>attribute บน rig</b> แทน
+            (<code>ATK</code>, <code>DEF</code>, <code>MaxHealth</code>, <code>HealingMultiplier</code>, <code>RegenMultiplier</code>)
+            นักพัฒนาที่รับ Stage 5 จึงเปลี่ยนเป็น <code>CombatService</code> จริงได้โดยไม่ต้องแก้ระบบอื่น
+          </p>
+          <p>
+            <b>ExtrasProvider:</b> <code>PartyService.RegisterExtrasProvider(fn)</code> คือจุดเสียบ stat bonus
+            ตอนนี้มีสองเจ้าลงทะเบียนอยู่ — <code>InventoryService</code> (เกียร์ = flat) และ <code>ClassService</code> (คลาส = multiplier)
+            ระบบใหม่ในอนาคตเสียบเพิ่มได้โดยไม่ต้องแก้ <code>StatCalc</code>
+          </p>
+          <p>
+            <b>EntryHandler:</b> <code>GateService.SetEntryHandler()</code> ทำให้ <code>GateService</code>
+            ไม่ต้อง <code>require</code> <code>DungeonService</code> เลย — ตัดวงจร dependency แบบวนกลับ
+          </p>
+          <div class="callout warn">
+            <b>ต้องเอาออกก่อนปล่อยจริง:</b> <code>DebugService</code> (รับคำสั่งจาก attribute ของผู้เล่น),
+            <code>DummyService</code> (หุ่นซ้อม) และ <code>TestHazardService</code> (Death Box)
+            ทั้งสามตัวอยู่ท้าย <code>SERVICE_ORDER</code> อยู่แล้ว จึงลบชื่อออกจากลิสต์ได้ตรง ๆ
+          </div>
+        </article>
+      </section>
+
+      <!-- ============ STAGES ============ -->
+      <section id="stages" aria-labelledby="stage-title">
+        <p class="eyebrow">แผนการพัฒนา</p>
+        <h2 id="stage-title">เลือก Stage เพื่อดูรายละเอียดเชิงระบบ</h2>
+        <div class="stage-picker" id="stage-picker"></div>
+        <article id="stage-detail" class="detail stage-detail" aria-live="polite"></article>
+      </section>
+
+      <!-- ============ STATUS ============ -->
+      <section id="status" class="two-col">
+        <article>
+          <p class="eyebrow">สถานะปัจจุบัน</p>
+          <h2>Stage 6 สร้างครบแล้ว รอการตรวจด้วยมือ</h2>
+          <ul class="checklist">
+            <li class="done"><b>6A Saving</b> — ProfileService store <code>PlayerData_v1</code>, session lock, Gold/Diamonds บน profile</li>
+            <li class="done"><b>6B Leveling</b> — EXP, level, Hunter Rank, party editor (P), party power จริง</li>
+            <li class="done"><b>6C Items</b> — ดรอป, bag, crafting, blacksmith, signature weapon, potion/trap</li>
+            <li class="done"><b>6D Player Class</b> — awakening ที่แท่นบูชา, 9 คลาส, modifier เข้าทั้งทีม</li>
+            <li><b>6E Quests &amp; Recruit</b> — สร้างครบ ยืนยันบางส่วน (board refresh + claim ผ่านแล้ว)</li>
+          </ul>
+          <div class="callout">
+            เมื่อรายการฝั่งขวาผ่านครบ เป้าหมายคือ sign-off แล้วขึ้นเวอร์ชัน <b>v0.4.0</b> จากนั้นเริ่ม Stage 7 (multiplayer 3+3+3)
+          </div>
+        </article>
+        <article>
+          <p class="eyebrow">รายการที่ต้องทดสอบ</p>
+          <h2>เปิด Studio แล้วไล่ตามลำดับนี้</h2>
+          <p class="tab-note">เรียงให้ข้อที่ทำให้ฐานเสียหายอยู่ท้ายสุด เพราะมันจะล็อกโครงสร้างที่ข้ออื่นต้องใช้</p>
+          <ul class="checklist">
+            <li><b>1.</b> ขายของและถอดเกียร์จาก Bag (<code>B</code>) — ดู Gold และ stat ขยับ</li>
+            <li><b>2.</b> ใช้ potion (<code>H</code>) ตอน HP พร่อง — ควรฟื้น 40%</li>
+            <li><b>3.</b> วาง trap (<code>T</code>) ใกล้มอนสเตอร์ — ดูว่าดาเมจเข้าจริง</li>
+            <li><b>4.</b> รับ secret quest แล้วดูว่าขั้นตอนเดินหน้า</li>
+            <li><b>5.</b> recruit Hunter แล้วใส่ลงปาร์ตี้ใน party editor</li>
+            <li><b>6.</b> รอ / บังคับ quest board refresh แล้วดู rollover</li>
+            <li><b>7.</b> ทำให้ฐาน Damaged แล้วตรวจว่า prompt ทุกอันถูกปิด และซ่อมแล้วกลับมา</li>
+          </ul>
+          <div class="callout warn">
+            <b>ค้างจาก Stage 3 ด้วย:</b> Red Gate ที่ออกไม่ได้, มอนสเตอร์ Berserk, ปาร์ตี้ wipe แล้วโดนเด้ง,
+            และ Gate แตกขณะที่ปาร์ตี้ยังอยู่ข้างใน — บางข้อรอ Stage 7 ก่อนถึงจะทดสอบได้ครบ
+          </div>
+        </article>
+      </section>
     </main>
-    <footer>Live Studio source verified through Roblox MCP on 2026-09-17 · handoff log is used only for remaining QA and sign-off status</footer>
+
+    <footer>
+      อ่านโค้ดสดจากเพลส Solo ผ่าน Roblox Studio MCP เมื่อ 2026-09-18 (Edit mode, v0.3.3) ·
+      ตัวเลขทั้งหมดมาจาก <code>ReplicatedStorage.Config</code> และ service จริง ·
+      session log ใช้เฉพาะเพื่อระบุงาน QA ที่ยังค้างและสถานะ sign-off
+    </footer>
+
     <script src="dungeon-summon-deep-dive-th.js"></script>
   </body>
 </html>

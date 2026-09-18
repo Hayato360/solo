@@ -76,11 +76,22 @@ Cross-session task tracker. Update this file alongside `sync_log.md` when comple
 
 - **Saving: ProfileService** (user, 2026-09-17), not ProfileStore. Studio falls back to `ProfileStore.Mock` when API access is off. Dev data resets by bumping the store key.
 
+- **Swap camera keeps the aim point** (user, 2026-09-18): on a Hunter swap the camera re-aims from the new Hunter at the **same world point** the previous one was watching, blended over 0.25s. Copying the old angle alone is not enough, because the new Hunter stands elsewhere.
+
+- **Target lock is a hard lock** (user, 2026-09-18): camera centres on the target, mouse look off, movement strafes around it. **Tap R** to lock the enemy nearest the view centre, tap again to cycle, **hold R** (0.35s) to release. `Escape` is unusable — Roblox owns it for its own menu and the input arrives `gameProcessed = true`. The lock drives the camera, Hunter facing, HUD marker + target HP bar, the `FocusTarget` AI mode, and basic-attack preference.
+
+- **Targeting lives in `TargetService`, not `PlaceholderCombatService`** (2026-09-18): the placeholder is replaced wholesale in Stage 5, so the lock must not live inside it. `PartyService.SetTargetProvider` is the hook that avoids a circular require.
+
+- **Default health CoreGui is disabled** (2026-09-18): it tracks a single Humanoid and reads any drop as damage, so every swap to a more damaged Hunter flashed the red vignette as if you had been hit. The party HUD already shows all three HP bars.
+
+- **Training dummies are punching bags by default** (user, 2026-09-18): HP 50000, ATK 0, stationary, so testing is not interrupted by them dying or fighting back. `DummyService.FIGHTS_BACK = true` restores the original Stage 1 dummy.
+
 ---
 
 ## 🔄 In Progress
 
-- [ ] **Stage 6 — Progression, Player Class & Saving** — 6A–6E all built (v0.3.3); 6A–6D verified, 6E partly verified; waiting for user hand checks + sign-off (2026-09-17)
+- [ ] **Stage 6 — Progression, Player Class & Saving** — 6A–6E all built (v0.3.3); 6A–6D verified, 6E partly verified; waiting for user hand checks + sign-off (2026-09-17). **Paused 2026-09-18** while camera/target-lock work was done at the user's request.
+- [ ] **Target Focus (lock-on) — built 2026-09-18 (v0.3.4), partly verified.** Tap **R** lock/cycle, hold **R** release. Needs feel checks: strafing, companions in FocusTarget mode, swapping while locked.
 
 ---
 
@@ -134,6 +145,26 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [ ] 6E hand checks: accept secret quest + step progress, recruit a Hunter and add to party, board refresh rollover
 - [ ] Stage 6 sign-off by user (then bump to v0.4.0). Version is v0.3.3 after 6D/6E (2026-09-17)
 - [ ] Before release: remove TEMP `DebugService`; consider `PlayerData_v2` to wipe dev test data
+
+### Target Focus / camera (built 2026-09-18, v0.3.4)
+- [x] `Config/TargetDefs`, `Remotes/Combat/SetTarget` + `TargetChanged`, `TargetService`, `TargetController` (2026-09-18)
+- [x] `CameraController`: swap re-aims at the same world point over a 0.25s blend; yields whenever the camera is `Scriptable` (2026-09-18)
+- [x] `HunterAIService.GetFocusTarget` prefers the lock; `PartyService` passes it as `preferredTarget` (2026-09-18)
+- [x] `DummyService` punching-bag mode (HP 50000, ATK 0, stationary, spacing 14) (2026-09-18)
+- [x] `GuiController` disables the default health CoreGui — fixes the false red damage vignette on swap (2026-09-18)
+- [x] Verified: tap locks (1.3° off centre), cycle visits all 3 bots, hold releases and restores camera/AutoRotate/HUD/marker, auto-release on death logs its reason (2026-09-18)
+- [ ] **User to confirm:** the red screen border is gone when swapping to Han Seoa
+- [ ] **User to judge:** strafe feel (A/D circling a locked target), camera distance/height/lerp
+- [ ] Test companions in `FocusTarget` mode (Q wheel) actually committing to the locked target
+- [ ] Test swapping while locked keeps the lock framed from the new Hunter
+- [ ] Re-verify Stage 1 — swap, camera and movement all changed after its sign-off
+- [ ] Mobile / touch: no lock button yet (R is keyboard only)
+- [ ] Consider raising `ClassDefs.BaseRegenPerSecond` (0.004 = 0.4%/s ≈ 200s to full-heal the Mage; nearly all healing currently comes from the Healer)
+- [ ] Before release: restore `DummyService.FIGHTS_BACK = true` or replace dummies with real monsters
+
+### Docs
+- [x] Rewrote `dungeon-summon-deep-dive-th.*` from live code: glossary, real formulas with worked examples, 8 config tables, Remote/Signal/Attribute tables, character-swap section (2026-09-18)
+- [ ] Deep-dive page is now out of date: the swap section still describes the old "keeps the same angle" camera, and there is no target-lock section
 
 ### Stage 7 — Multiplayer Party
 - [ ] Invites, up to 3 players and 9 active Hunters per Gate (3 + 3 + 3), personal party join/leave, duplicate Hunter definitions allowed across players, shared dungeon

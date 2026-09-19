@@ -166,6 +166,9 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [x] Added **`C`** as a keyboard block key; right mouse fights camera rotation and was undiscoverable (2026-09-19)
 - [ ] ⚠️ **Tool-click fix is NOT playtest-verified** — code is in, reproduction understood, but the playtest ended first. Equip Sword01 and left-click to confirm.
 - [ ] Decide whether right mouse should stay a block binding at all
+- [x] Added character-specific F/G/X kits, damage-charged ultimate meter, hold-preview-release AoE telegraphs, target-range feedback, and Passive companion mode (2026-09-19)
+- [ ] Hand-test X ultimate after filling its meter, including swap-away/swap-back persistence; Studio transport closed during final verification (2026-09-19)
+- [ ] Hand-test Mina Second Dawn and Seo Yuna Starlight Revival on a fallen nearby party member (2026-09-19)
 - [ ] User sign-off on Stage 5
 
 ### Stage 6 — Progression, Player Class & Saving (planned 2026-09-17)
@@ -211,3 +214,5 @@ Detailed build steps and "done when" checks for each stage are in `Dungeon Summo
 - [ ] Currencies + Guild Shop
 - [ ] Safe Trading with guild tax
 - [ ] Pawn System contracts (lock, redemption, expiry, offline-safe)
+
+
